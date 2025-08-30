@@ -19,7 +19,12 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
         LOG_DEBUG << "recv a ping";
     } else if(type == WebSocketMessageType::Text) {
         auto &s = wsConnPtr->getContextRef<Subscriber>();
-        chatRooms_.publish(s.chatRoomName_, message);
+        Json::Value response;
+        response["type"] = "message";
+        response["message"] = message;
+        Json::StreamWriterBuilder wbuilder;
+        std::string jsonStr = Json::writeString(wbuilder, response);
+        chatRooms_.publish(s.chatRoomName_, jsonStr);
     }
 }
 void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,const WebSocketConnectionPtr &wsConnPtr)
