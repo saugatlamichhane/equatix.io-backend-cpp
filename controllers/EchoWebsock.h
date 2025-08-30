@@ -19,4 +19,5 @@ public:
     WS_PATH_LIST_END
 private:
         PubSubService<std::string> chatRooms_;
+        std::vector<Json::Value> state_;
 };
