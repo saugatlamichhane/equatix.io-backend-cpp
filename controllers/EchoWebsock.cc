@@ -5,9 +5,11 @@
 #include <drogon/PubSubService.h>
 #include <drogon/WebSocketConnection.h>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <trantor/utils/Logger.h>
 #include <vector>
+#include <stack>
 
 struct Subscriber {
     std::string chatRoomName_;
@@ -171,6 +173,58 @@ std::vector<std::vector<Json::Value>> getAffectedEquations(const std::vector<Jso
     return affected;
 }
 
+int precedence(char op) {
+    if(op == '+' || op == '-') return 1;
+    if(op == '*' || op == '/') return 2;
+}
+
+int applyOp(int a, int b, char op) {
+    switch(op) {
+        case '+': return a + b;
+        case '-': return a - b;
+        case '*': return a * b;
+        case '/':
+                  if(b == 0) throw std::runtime_error("Division by zero");
+                  return a/b;
+    }
+    throw std::runtime_error("invalid operator");
+}
+
+int evaluateExpression(const std::string& expr) {
+    std::stack<int> values;
+    std::stack<char> ops;
+
+    size_t i =0;
+    while(i < expr.size()) {
+        if(isdigit(expr[i])) {
+            int val = 0;
+            while(i < expr.size() && isdigit(expr[i])) {
+                val = val*10+(expr[i]-'0');
+                i++;
+            }
+            values.push(val);
+        } else if(expr[i] == '+' || expr[i] == '-' || expr[i] == '*' || expr[i] == '/') {
+            while(!ops.empty() && precedence(ops.top()) >= precedence(expr[i])) {
+                int b=values.top(); values.pop();
+                int  a = values.top(); values.pop();
+                char op = ops.top(); ops.pop();
+                values.push(applyOp(a, b, op));
+            }
+            ops.push(expr[i]);
+            i++;
+        } else {
+            throw std::runtime_error("Invalid character in expression");
+        }
+    }
+    while(!ops.empty()) {
+        int b = values.top(); values.pop();
+        int a = values.top(); values.pop();
+        char op = ops.top(); ops.pop();
+        values.push(applyOp(a, b, op));
+    }
+    return values.top();
+}
+
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::string &&message, const WebSocketMessageType& type)
 {
     //write your application logic here
@@ -188,7 +242,14 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
         }
         Json::Value response;
         std::string msgType = root["type"].asString();
-        if(msgType == "placement") {
+        if(msgType == "evaluate") {
+            std::string payload = root["payload"].asString();
+            response["value"] = evaluateExpression(payload);
+            Json::StreamWriterBuilder wbuilder;
+            std::string jsonStr = Json::writeString(wbuilder, response);
+            chatRooms_.publish(s.chatRoomName_, jsonStr);
+        }
+        else if(msgType == "placement") {
             Json::Value payload = root["payload"];
                 if(isOccupied(state_, current_, payload["row"].asInt(), payload["col"].asInt())) {
                     response["type"] = "error";
