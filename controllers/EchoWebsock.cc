@@ -243,11 +243,27 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
         Json::Value response;
         std::string msgType = root["type"].asString();
         if(msgType == "evaluate") {
-            std::string payload = root["payload"].asString();
-            response["value"] = evaluateExpression(payload);
-            Json::StreamWriterBuilder wbuilder;
-            std::string jsonStr = Json::writeString(wbuilder, response);
-            chatRooms_.publish(s.chatRoomName_, jsonStr);
+            response["affected"] = Json::Value(Json::arrayValue);
+        auto affected = getAffectedEquations(state_, current_);
+        for(const auto& seq: affected) {
+            Json::Value arr(Json::arrayValue);
+            for(const auto& tile: seq) {
+                arr.append(tile);
+            }
+            Json::Value affectedEquation;
+            affectedEquation["equation"] = arr;
+            std::string expr = "";
+            for(const auto& tile:seq) {
+                expr += tile["value"].asString();
+            }
+            affectedEquation["value"] = evaluateExpression(expr);
+            affectedEquation["expr"] = expr;
+            response["affected"].append(affectedEquation);
+        }
+        Json::StreamWriterBuilder wbuilder;
+        std::string jsonStr = Json::writeString(wbuilder, response);
+        chatRooms_.publish(s.chatRoomName_, jsonStr);
+ 
         }
         else if(msgType == "placement") {
             Json::Value payload = root["payload"];
