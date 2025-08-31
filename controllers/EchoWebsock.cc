@@ -25,6 +25,31 @@ bool isOccupied(std::vector<Json::Value> current_, std::vector<Json::Value> stat
     return false;
 }
 
+bool isStraightLine(std::vector<Json::Value> current_, int row, int col) {
+    if(current_.empty()) return true;
+    bool isHorizontal = true;
+    int firstRow = current_.at(0)["row"].asInt();
+    for(const auto& tile: current_) {
+        if(tile["row"].asInt() != firstRow) {
+            isHorizontal = false;
+            break;
+        }
+    }
+    if(row != firstRow) isHorizontal = false;
+
+    bool isVertical = true;
+    int firstCol = current_[0]["col"].asInt();
+
+    for(const auto& tile: current_) {
+        if(tile["col"].asInt() != firstCol) {
+            isVertical = false;
+            break;
+        }
+    }
+    if(col != firstCol) isVertical = false;
+    return isHorizontal || isVertical;
+}
+
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::string &&message, const WebSocketMessageType& type)
 {
     //write your application logic here
@@ -53,6 +78,15 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
                     chatRooms_.publish(s.chatRoomName_, jsonStr);
                     return;
             }
+                LOG_DEBUG << "Passed occupied check.";
+                if(!isStraightLine(current_, payload["row"].asInt(), payload["col"].asInt())) {
+                    response["type"] = "error";
+                    response["message"] = "Not in straight line.";
+                    Json::StreamWriterBuilder wbuilder;
+                    std::string jsonStr = Json::writeString(wbuilder, response);
+                    chatRooms_.publish(s.chatRoomName_, jsonStr);
+                    return;
+                }
             current_.push_back(payload);
         }
         response["type"] = "state";
