@@ -20,4 +20,5 @@ public:
 private:
         PubSubService<std::string> chatRooms_;
         std::vector<Json::Value> state_;
+        std::vector<Json::Value> current_;
 };

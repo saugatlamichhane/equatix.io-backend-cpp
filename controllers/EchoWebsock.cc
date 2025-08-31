@@ -11,6 +11,20 @@ struct Subscriber {
     drogon::SubscriberID id_;
 };
 
+bool isOccupied(std::vector<Json::Value> current_, std::vector<Json::Value> state_, int row, int col) {
+    for(auto& item: current_) {
+        if(item["row"].asInt() == row && item["col"].asInt() == col) {
+            return true;
+        }
+    }
+    for(auto& item: state_) {
+        if(item["row"].asInt() == row && item["col"].asInt()==col) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::string &&message, const WebSocketMessageType& type)
 {
     //write your application logic here
@@ -30,8 +44,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
         std::string msgType = root["type"].asString();
         if(msgType == "placement") {
             Json::Value payload = root["payload"];
-            for(auto& item: state_) {
-                if(item["row"] == payload["row"] && item["col"] == payload["col"]) {
+                if(isOccupied(state_, current_, payload["row"].asInt(), payload["col"].asInt())) {
                     response["type"] = "error";
                     response["message"] = "Cell already occupied";
 
@@ -39,14 +52,17 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
                     std::string jsonStr = Json::writeString(wbuilder, response);
                     chatRooms_.publish(s.chatRoomName_, jsonStr);
                     return;
-                }
             }
-            state_.push_back(payload);
+            current_.push_back(payload);
         }
         response["type"] = "state";
         response["tiles"] = Json::Value(Json::arrayValue);
         for(auto& tile: state_) {
             response["tiles"].append(tile);
+        }
+        response["current tiles"] = Json::Value(Json::arrayValue);
+        for(auto& tile: current_) {
+            response["current tiles"].append(tile);
         }
         Json::StreamWriterBuilder wbuilder;
         std::string jsonStr = Json::writeString(wbuilder, response);
