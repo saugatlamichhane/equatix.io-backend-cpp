@@ -225,6 +225,16 @@ int evaluateExpression(const std::string& expr) {
     return values.top();
 }
 
+std::vector<std::string> splitEquation(const std::string& eq) {
+    std::vector<std::string> parts;
+    std::stringstream ss(eq);
+    std::string token;
+    while(std::getline(ss, token, '=')) {
+        parts.push_back(token);
+    }
+    return parts;
+}
+
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::string &&message, const WebSocketMessageType& type)
 {
     //write your application logic here
@@ -256,8 +266,15 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
             for(const auto& tile:seq) {
                 expr += tile["value"].asString();
             }
-            affectedEquation["value"] = evaluateExpression(expr);
-            affectedEquation["expr"] = expr;
+            auto parts = splitEquation(expr);
+            Json::Value expressions(Json::arrayValue);
+            for(const auto& part: parts) {
+                Json::Value expression;
+                expression["expr"]= part;
+                expression["value"] = evaluateExpression(part);
+                expressions.append(expression);
+            }
+            affectedEquation["expressions"]= expressions;
             response["affected"].append(affectedEquation);
         }
         Json::StreamWriterBuilder wbuilder;
