@@ -5,7 +5,9 @@
 #include <drogon/PubSubService.h>
 #include <drogon/WebSocketConnection.h>
 #include <memory>
+#include <string>
 #include <trantor/utils/Logger.h>
+#include <vector>
 
 struct Subscriber {
     std::string chatRoomName_;
@@ -110,6 +112,65 @@ bool isContiguous(std::vector<Json::Value> state, std::vector<Json::Value> curre
     return true;
 }
 
+std::vector<std::vector<Json::Value>> getAffectedEquations(const std::vector<Json::Value>& state, const std::vector<Json::Value>& current) {
+    using Coord = std::pair<int, int>;
+    std::map<Coord, Json::Value> board;
+    auto addTiles = [&](const std::vector<Json::Value>& tiles) {
+        for(auto& t: tiles) {
+            int r = t["row"].asInt();
+            int c = t["col"].asInt();
+            board[{r, c}] = t;
+        }
+    };
+    addTiles(state);
+    addTiles(current);
+    std::vector<std::vector<Json::Value>> affected;
+    std::set<std::string> seen;
+
+    for(auto& t: current) {
+        int r = t["row"].asInt();
+        int c = t["col"].asInt();
+
+        std::vector<Json::Value> rowSeq;
+
+        int cc = c;
+        while(board.count({r, cc}))  cc--;
+
+        cc++;
+
+        while(board.count({r, cc})) {
+            rowSeq.push_back(board[{r, cc}]);
+            cc++;
+        }
+        if(rowSeq.size() > 1) {
+            std::string key = "R:" + std::to_string(r) + ":" + std::to_string(rowSeq.front()["col"].asInt()) + "-" + std::to_string(rowSeq.back()["col"].asInt());
+            if(!seen.count(key)) {
+                seen.insert(key);
+                affected.push_back(rowSeq);
+            }
+        }
+        std::vector<Json::Value> colSeq;
+        int rr = r;
+        while(board.count({rr, c})) {
+            rr--;
+        }
+        rr++;
+        while(board.count({rr, c})) {
+            colSeq.push_back(board[{rr, c}]);
+            rr++;
+        }
+
+        if(colSeq.size() > 1) {
+            std::string key = "C:" + std::to_string(c) + ":" + std::to_string(colSeq.front()["row"].asInt()) + "-" + std::to_string(colSeq.back()["row"].asInt());
+            if(!seen.count(key)) {
+                seen.insert(key);
+                affected.push_back(colSeq);
+            }
+        }
+    }
+    return affected;
+}
+
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::string &&message, const WebSocketMessageType& type)
 {
     //write your application logic here
@@ -164,6 +225,15 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
         response["current tiles"] = Json::Value(Json::arrayValue);
         for(auto& tile: current_) {
             response["current tiles"].append(tile);
+        }
+        response["affected"] = Json::Value(Json::arrayValue);
+        auto affected = getAffectedEquations(state_, current_);
+        for(const auto& seq: affected) {
+            Json::Value arr(Json::arrayValue);
+            for(const auto& tile: seq) {
+                arr.append(tile);
+            }
+            response["affected"].append(arr);
         }
         Json::StreamWriterBuilder wbuilder;
         std::string jsonStr = Json::writeString(wbuilder, response);
