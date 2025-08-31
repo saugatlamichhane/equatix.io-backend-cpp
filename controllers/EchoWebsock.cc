@@ -30,6 +30,17 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
         std::string msgType = root["type"].asString();
         if(msgType == "placement") {
             Json::Value payload = root["payload"];
+            for(auto& item: state_) {
+                if(item["row"] == payload["row"] && item["col"] == payload["col"]) {
+                    response["type"] = "error";
+                    response["message"] = "Cell already occupied";
+
+                    Json::StreamWriterBuilder wbuilder;
+                    std::string jsonStr = Json::writeString(wbuilder, response);
+                    chatRooms_.publish(s.chatRoomName_, jsonStr);
+                    return;
+                }
+            }
             state_.push_back(payload);
         }
         response["type"] = "state";
