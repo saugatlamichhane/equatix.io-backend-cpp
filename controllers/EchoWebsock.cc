@@ -1,5 +1,6 @@
 //EchoWebsock.cc
 #include "EchoWebsock.h"
+#include <algorithm>
 #include <drogon/HttpTypes.h>
 #include <drogon/PubSubService.h>
 #include <drogon/WebSocketConnection.h>
@@ -50,6 +51,65 @@ bool isStraightLine(std::vector<Json::Value> current_, int row, int col) {
     return isHorizontal || isVertical;
 }
 
+bool isContiguous(std::vector<Json::Value> state, std::vector<Json::Value> current, int row, int col) {
+    if(current.empty()) return true;
+    bool sameRow = std::all_of(current.begin(), current.end(), [&](const auto& tile) {return tile["row"].asInt() == row;});
+    bool sameCol = std::all_of(current.begin(), current.end(), [&](const auto& tile) {return tile["col"].asInt() == col;});
+    if(!sameRow && !sameCol) return false;
+
+    if(sameRow) {
+        std::set<int> cols;
+        for(const auto& tile: current) {
+            if(tile["row"].asInt() == row) cols.insert(tile["col"].asInt());
+        }
+        cols.insert(col);
+        for(const auto& tile: state) {
+            if(tile["row"].asInt() == row) cols.insert(tile["col"].asInt());
+
+        }
+        int minCol = 20, maxCol = -1;
+        for(const auto& tile: current) {
+            minCol = std::min(minCol, tile["col"].asInt());
+            maxCol = std::max(maxCol, tile["col"].asInt());
+        }
+        minCol = std::min(minCol, col);
+        maxCol = std::max(maxCol, col);
+        for(int c = minCol; c <= maxCol; ++c) {
+            if(cols.find(c) == cols.end()) {
+                return false;
+            }
+        }
+    } else if(sameCol) {
+        std::set<int> rows;
+        for(const auto& tile: current) {
+            if(tile["col"].asInt() == col) rows.insert(tile["row"].asInt());
+        }
+        rows.insert(row);
+        for(const auto& tile: state) {
+            if(tile["col"].asInt() == col) rows.insert(tile["row"].asInt());
+
+        }
+        int minRow = 20, maxRow = -1;
+        for(const auto& tile: current) {
+            minRow = std::min(minRow, tile["row"].asInt());
+            maxRow = std::max(maxRow, tile["row"].asInt());
+        }
+        minRow = std::min(minRow, row);
+        maxRow = std::max(maxRow, row);
+        for(int r = minRow; r <= maxRow; ++r) {
+            if(rows.find(r) == rows.end()) 
+            {
+                LOG_DEBUG << "row " << r << " not found";
+                return false;
+
+            } else {
+                LOG_DEBUG << "row " << r << " found";
+            }
+        }
+    }
+    return true;
+}
+
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::string &&message, const WebSocketMessageType& type)
 {
     //write your application logic here
@@ -78,10 +138,17 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
                     chatRooms_.publish(s.chatRoomName_, jsonStr);
                     return;
             }
-                LOG_DEBUG << "Passed occupied check.";
                 if(!isStraightLine(current_, payload["row"].asInt(), payload["col"].asInt())) {
                     response["type"] = "error";
                     response["message"] = "Not in straight line.";
+                    Json::StreamWriterBuilder wbuilder;
+                    std::string jsonStr = Json::writeString(wbuilder, response);
+                    chatRooms_.publish(s.chatRoomName_, jsonStr);
+                    return;
+                }
+                if(!isContiguous(state_, current_, payload["row"].asInt(), payload["col"].asInt())) {
+                    response["type"] = "error";
+                    response["message"] = "Not contiguous";
                     Json::StreamWriterBuilder wbuilder;
                     std::string jsonStr = Json::writeString(wbuilder, response);
                     chatRooms_.publish(s.chatRoomName_, jsonStr);
