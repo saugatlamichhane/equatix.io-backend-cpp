@@ -11,6 +11,9 @@ struct RoomState {
     WebSocketConnectionPtr player1Conn;
     WebSocketConnectionPtr player2Conn;
     int currentTurn = 1;
+    std::vector<std::string> tileBag;
+    std::vector<std::string> player1Rack;
+    std::vector<std::string> player2Rack;
 };
 
 class EchoWebsock:public drogon::WebSocketController<EchoWebsock>
