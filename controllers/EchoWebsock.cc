@@ -251,10 +251,20 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
             return;
         }
         Json::Value response;
+        auto& room = rooms[s.chatRoomName_];
         std::string msgType = root["type"].asString();
+        int playerTurn = (wsConnPtr == room.player1Conn)?1:2;
+        if((msgType=="placement" ||msgType=="evaluate") && playerTurn != room.currentTurn) {
+            response["type"] = "error";
+            response["message"] = "Not your turn";
+            response["writer"] = playerTurn;
+            response["turn"]= room.currentTurn;
+            chatRooms_.publish(s.chatRoomName_, Json::writeString(Json::StreamWriterBuilder(), response));
+            return;
+        }
         if(msgType == "evaluate") {
             response["affected"] = Json::Value(Json::arrayValue);
-        auto affected = getAffectedEquations(state_, current_);
+        auto affected = getAffectedEquations(room.state_, room.current_);
         for(const auto& seq: affected) {
             Json::Value arr(Json::arrayValue);
             for(const auto& tile: seq) {
@@ -284,7 +294,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
         }
         else if(msgType == "placement") {
             Json::Value payload = root["payload"];
-                if(isOccupied(state_, current_, payload["row"].asInt(), payload["col"].asInt())) {
+                if(isOccupied(room.state_, room.current_, payload["row"].asInt(), payload["col"].asInt())) {
                     response["type"] = "error";
                     response["message"] = "Cell already occupied";
 
@@ -293,7 +303,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
                     chatRooms_.publish(s.chatRoomName_, jsonStr);
                     return;
             }
-                if(!isStraightLine(current_, payload["row"].asInt(), payload["col"].asInt())) {
+                if(!isStraightLine(room.current_, payload["row"].asInt(), payload["col"].asInt())) {
                     response["type"] = "error";
                     response["message"] = "Not in straight line.";
                     Json::StreamWriterBuilder wbuilder;
@@ -301,7 +311,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
                     chatRooms_.publish(s.chatRoomName_, jsonStr);
                     return;
                 }
-                if(!isContiguous(state_, current_, payload["row"].asInt(), payload["col"].asInt())) {
+                if(!isContiguous(room.state_, room.current_, payload["row"].asInt(), payload["col"].asInt())) {
                     response["type"] = "error";
                     response["message"] = "Not contiguous";
                     Json::StreamWriterBuilder wbuilder;
@@ -309,19 +319,19 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,std::
                     chatRooms_.publish(s.chatRoomName_, jsonStr);
                     return;
                 }
-            current_.push_back(payload);
+            room.current_.push_back(payload);
         }
         response["type"] = "state";
         response["tiles"] = Json::Value(Json::arrayValue);
-        for(auto& tile: state_) {
+        for(auto& tile: room.state_) {
             response["tiles"].append(tile);
         }
         response["current tiles"] = Json::Value(Json::arrayValue);
-        for(auto& tile: current_) {
+        for(auto& tile: room.current_) {
             response["current tiles"].append(tile);
         }
         response["affected"] = Json::Value(Json::arrayValue);
-        auto affected = getAffectedEquations(state_, current_);
+        auto affected = getAffectedEquations(room.state_, room.current_);
         for(const auto& seq: affected) {
             Json::Value arr(Json::arrayValue);
             for(const auto& tile: seq) {
@@ -338,15 +348,19 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,const WebSocketC
 {
     //write your application logic here
     LOG_DEBUG << "new websocket connection!";
-
-    wsConnPtr->send("haha!!");
     Subscriber s;
     s.chatRoomName_ = req->getParameter("room_name");
+    auto& room = rooms[s.chatRoomName_];
+    if(!room.player1Conn) room.player1Conn=wsConnPtr; else room.player2Conn = wsConnPtr;
     s.id_ = chatRooms_.subscribe(s.chatRoomName_, [wsConnPtr] (const std::string &topic, const std::string &message) {
             (void) topic;
             wsConnPtr->send(message);
             });
     wsConnPtr->setContext(std::make_shared<Subscriber>(std::move(s)));
+    Json::Value init;
+    init["type"] = "init";
+    init["turn"] = room.currentTurn;
+    wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
 }
 void EchoWebsock::handleConnectionClosed(const WebSocketConnectionPtr &wsConnPtr)
 {
