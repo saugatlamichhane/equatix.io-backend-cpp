@@ -103,7 +103,7 @@ std::vector<std::string> drawTiles(std::vector<std::string> &tileBag, int n) {
 bool touchesCenter(const std::vector<Json::Value> &current) {
   for (auto &t : current) {
     if (t["row"].asInt() == 8 && t["col"].asInt() == 8) {
-      return false;
+      return true;
     }
   }
   return false;
@@ -326,6 +326,8 @@ int applyOp(int a, int b, char op) {
   case '/':
     if (b == 0)
       throw std::runtime_error("Division by zero");
+    if(a%b != 0) 
+        throw std::runtime_error("Not divisible");
     return a / b;
   }
   throw std::runtime_error("invalid operator");
