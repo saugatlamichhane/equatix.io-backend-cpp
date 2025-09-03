@@ -438,6 +438,9 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     if(msgType == "reset") {
         reset(room, playerTurn);
         return;
+    } else if(msgType == "pass") {
+        reset(room, playerTurn);
+        room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
     }
     else if (msgType == "evaluate") {
       if (room.state_.empty()) {
