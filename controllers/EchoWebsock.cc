@@ -100,6 +100,38 @@ std::vector<std::string> drawTiles(std::vector<std::string> &tileBag, int n) {
   return drawnTiles;
 }
 
+bool touchesCenter(const std::vector<Json::Value> &current) {
+  for (auto &t : current) {
+    if (t["row"].asInt() == 8 && t["col"].asInt() == 8) {
+      return false;
+    }
+  }
+  return false;
+}
+
+bool touchesExisting(const std::vector<Json::Value> &state,
+                     const std::vector<Json::Value> &current) {
+  std::set<std::pair<int, int>> placed;
+  for (auto &t : current) {
+
+    placed.insert({t["row"].asInt(), t["col"].asInt()});
+  }
+  for (auto &t : current) {
+    int r = t["row"].asInt();
+    int c = t["col"].asInt();
+    std::vector<std::pair<int, int>> neighbors = {
+        {r - 1, c}, {r + 1, c}, {r, c - 1}, {r, c + 1}};
+    for (auto &nb : neighbors) {
+      for (auto &s : state) {
+        if (s["row"].asInt() == nb.first && s["col"].asInt() == nb.second) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 bool isOccupied(std::vector<Json::Value> current_,
                 std::vector<Json::Value> state_, int row, int col) {
   for (auto &item : current_) {
@@ -384,6 +416,18 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       return;
     }
     if (msgType == "evaluate") {
+      if (room.state_.empty()) {
+        if (!touchesCenter(room.current_)) {
+
+          response["type"] = "error";
+          response["message"] = "First move must cover the center (8, 8)";
+          Json::StreamWriterBuilder wbuilder;
+          std::string jsonStr = Json::writeString(wbuilder, response);
+          chatRooms_.publish(s.chatRoomName_, jsonStr);
+
+          return;
+        }
+      }
       response["affected"] = Json::Value(Json::arrayValue);
       auto affected = getAffectedEquations(room.state_, room.current_);
       for (const auto &seq : affected) {
@@ -472,26 +516,28 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       rack.erase(it);
       room.current_.push_back(payload);
     }
-    if(playerTurn == 1) {
-        auto& rack = room.player1Rack;
-        Json::Value msg;
-        msg["type"] = "rack";
-        msg["rack"] = Json::Value(Json::arrayValue);
-        for(auto& item: rack) {
-            msg["rack"].append(item);
-        }
-        room.player1Conn->send(Json::writeString(Json::StreamWriterBuilder(), msg));
+    if (playerTurn == 1) {
+      auto &rack = room.player1Rack;
+      Json::Value msg;
+      msg["type"] = "rack";
+      msg["rack"] = Json::Value(Json::arrayValue);
+      for (auto &item : rack) {
+        msg["rack"].append(item);
+      }
+      room.player1Conn->send(
+          Json::writeString(Json::StreamWriterBuilder(), msg));
     } else {
-        auto& rack = room.player2Rack;
-        Json::Value msg;
-        msg["type"] = "rack";
-        msg["rack"] = Json::Value(Json::arrayValue);
-        for(auto& item: rack) {
-            msg["rack"].append(item);
-        }
-        room.player2Conn->send(Json::writeString(Json::StreamWriterBuilder(), msg));
+      auto &rack = room.player2Rack;
+      Json::Value msg;
+      msg["type"] = "rack";
+      msg["rack"] = Json::Value(Json::arrayValue);
+      for (auto &item : rack) {
+        msg["rack"].append(item);
+      }
+      room.player2Conn->send(
+          Json::writeString(Json::StreamWriterBuilder(), msg));
     }
-    
+
     response["type"] = "state";
     response["tiles"] = Json::Value(Json::arrayValue);
     for (auto &tile : room.state_) {
