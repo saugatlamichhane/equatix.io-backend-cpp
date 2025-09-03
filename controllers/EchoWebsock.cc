@@ -132,22 +132,24 @@ bool touchesExisting(const std::vector<Json::Value> &state,
   return false;
 }
 
-void reset(RoomState& room, int playerTurn) {
-    std::vector<std::string>& playerRack = (playerTurn == 1)?room.player1Rack: room.player2Rack;
-    for(auto& tile: room.current_) {
-        playerRack.push_back(tile["value"].asString());
-    }
-    room.current_.clear();
-    Json::Value response;
-    response["type"] = "reset";
-    response["rack"] = Json::Value(Json::arrayValue);
-    for(auto& tile: playerRack) {
-        response["rack"].append(tile);
-    }
-    WebSocketConnectionPtr wsConnPtr = (playerTurn == 1)?room.player1Conn:room.player2Conn;
-    if(wsConnPtr) {
-        wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), response));
-    }
+void reset(RoomState &room, int playerTurn) {
+  std::vector<std::string> &playerRack =
+      (playerTurn == 1) ? room.player1Rack : room.player2Rack;
+  for (auto &tile : room.current_) {
+    playerRack.push_back(tile["value"].asString());
+  }
+  room.current_.clear();
+  Json::Value response;
+  response["type"] = "reset";
+  response["rack"] = Json::Value(Json::arrayValue);
+  for (auto &tile : playerRack) {
+    response["rack"].append(tile);
+  }
+  WebSocketConnectionPtr wsConnPtr =
+      (playerTurn == 1) ? room.player1Conn : room.player2Conn;
+  if (wsConnPtr) {
+    wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), response));
+  }
 }
 
 bool isOccupied(std::vector<Json::Value> current_,
@@ -344,8 +346,8 @@ int applyOp(int a, int b, char op) {
   case '/':
     if (b == 0)
       throw std::runtime_error("Division by zero");
-    if(a%b != 0) 
-        throw std::runtime_error("Not divisible");
+    if (a % b != 0)
+      throw std::runtime_error("Not divisible");
     return a / b;
   }
   throw std::runtime_error("invalid operator");
@@ -435,14 +437,55 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           Json::writeString(Json::StreamWriterBuilder(), response));
       return;
     }
-    if(msgType == "reset") {
-        reset(room, playerTurn);
+    if (msgType == "reset") {
+      reset(room, playerTurn);
+      return;
+    } else if (msgType == "swap") {
+      const Json::Value &tilesToSwap = root["tiles"];
+      auto &playerRack =
+          (room.currentTurn == 1) ? room.player1Rack : room.player2Rack;
+      std::vector<std::string> swapList;
+      for (auto &t : tilesToSwap) {
+        swapList.push_back(t.asString());
+      }
+      if (room.tileBag.size() < swapList.size()) {
+        response["type"] = "error";
+        response["message"] = "Not enough tiles in bag to swap.";
+        wsConnPtr->send(
+            Json::writeString(Json::StreamWriterBuilder(), response));
         return;
-    } else if(msgType == "pass") {
-        reset(room, playerTurn);
-        room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
-    }
-    else if (msgType == "evaluate") {
+      }
+      std::unordered_map<std::string, int> rackCount;
+      for (auto &tile : playerRack)
+        rackCount[tile]++;
+      for (auto &tile : swapList) {
+        if (--rackCount[tile] < 0) {
+          response["type"] = "error";
+          response["message"] =
+              "Invalid swap: not enough ' " + tile + " ' in rack.";
+          wsConnPtr->send(
+              Json::writeString(Json::StreamWriterBuilder(), response));
+          return;
+        }
+      }
+      for (auto &tile : swapList) {
+        auto it = std::find(playerRack.begin(), playerRack.end(), tile);
+        if (it != playerRack.end())
+          playerRack.erase(it);
+      }
+      auto newTiles = drawTiles(room.tileBag, (int)swapList.size());
+      playerRack.insert(playerRack.end(), newTiles.begin(), newTiles.end());
+      for (auto &tile : swapList) {
+        room.tileBag.push_back(tile);
+      }
+      std::shuffle(room.tileBag.begin(), room.tileBag.end(),
+                   std::mt19937{std::random_device{}()});
+      room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
+
+    } else if (msgType == "pass") {
+      reset(room, playerTurn);
+      room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
+    } else if (msgType == "evaluate") {
       if (room.state_.empty()) {
         if (!touchesCenter(room.current_)) {
 
@@ -455,12 +498,13 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           return;
         }
       } else {
-          if(!touchesExisting(room.state_, room.current_)) {
-              response["type"] = "error";
-              response["messsage"] = "Move must connect to existing tiles.";
-              wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), response));
-              return;
-          }
+        if (!touchesExisting(room.state_, room.current_)) {
+          response["type"] = "error";
+          response["messsage"] = "Move must connect to existing tiles.";
+          wsConnPtr->send(
+              Json::writeString(Json::StreamWriterBuilder(), response));
+          return;
+        }
       }
       response["affected"] = Json::Value(Json::arrayValue);
       auto affected = getAffectedEquations(room.state_, room.current_);
@@ -501,20 +545,23 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         room.state_.push_back(t);
       }
       room.current_.clear();
-      std::vector<std::string>& playerRack = (playerTurn == 1)?room.player1Rack:room.player2Rack;
-      auto newTiles = drawTiles(room.tileBag, 8-playerRack.size());
-      for(auto& tile: newTiles) {
-          playerRack.push_back(tile);
+      std::vector<std::string> &playerRack =
+          (playerTurn == 1) ? room.player1Rack : room.player2Rack;
+      auto newTiles = drawTiles(room.tileBag, 8 - playerRack.size());
+      for (auto &tile : newTiles) {
+        playerRack.push_back(tile);
       }
       Json::Value rackJson;
       rackJson["type"] = "rack";
-      rackJson["rack"]= Json::Value(Json::arrayValue);
-      for(auto& item: playerRack) {
-          rackJson["rack"].append(item);
+      rackJson["rack"] = Json::Value(Json::arrayValue);
+      for (auto &item : playerRack) {
+        rackJson["rack"].append(item);
       }
-      WebSocketConnectionPtr wsConnPtr = (playerTurn==1)?room.player1Conn:room.player2Conn;
-      if(wsConnPtr) {
-          wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), rackJson));
+      WebSocketConnectionPtr wsConnPtr =
+          (playerTurn == 1) ? room.player1Conn : room.player2Conn;
+      if (wsConnPtr) {
+        wsConnPtr->send(
+            Json::writeString(Json::StreamWriterBuilder(), rackJson));
       }
       room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
       Json::StreamWriterBuilder wbuilder;
