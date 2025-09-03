@@ -5,12 +5,12 @@
 #include <drogon/PubSubService.h>
 #include <drogon/WebSocketConnection.h>
 #include <memory>
+#include <random>
 #include <stack>
 #include <stdexcept>
 #include <string>
 #include <trantor/utils/Logger.h>
 #include <vector>
-#include <random>
 
 struct Subscriber {
   std::string chatRoomName_;
@@ -18,103 +18,86 @@ struct Subscriber {
 };
 
 enum class MultiplierType {
-    NONE,
-    DOUBLE_TILE,
-    TRIPLE_TILE,
-    DOUBLE_EQUATION,
-    TRIPLE_EQUATION
+  NONE,
+  DOUBLE_TILE,
+  TRIPLE_TILE,
+  DOUBLE_EQUATION,
+  TRIPLE_EQUATION
 };
 
-std::map<std::pair<int,int>, MultiplierType> boardMultipliers;
+std::map<std::pair<int, int>, MultiplierType> boardMultipliers;
 
 void initBoardMultipliers() {
-    // 1️⃣ Initialize all cells to NONE
-    for(int r = 1; r <= 15; ++r) {
-        for(int c = 1; c <= 15; ++c) {
-            boardMultipliers[{r,c}] = MultiplierType::NONE;
-        }
+  // 1️⃣ Initialize all cells to NONE
+  for (int r = 1; r <= 15; ++r) {
+    for (int c = 1; c <= 15; ++c) {
+      boardMultipliers[{r, c}] = MultiplierType::NONE;
     }
+  }
 
-    // 2️⃣ Triple Equation (Triple Word)
-    std::pair<int,int> tripleWordCoords[] = {
-        {1,1},{1,8},{1,15},{8,1},{8,15},{15,1},{15,8},{15,15}
-    };
-    for(auto &coord : tripleWordCoords)
-        boardMultipliers[coord] = MultiplierType::TRIPLE_EQUATION;
+  // 2️⃣ Triple Equation (Triple Word)
+  std::pair<int, int> tripleWordCoords[] = {
+      {1, 1}, {1, 8}, {1, 15}, {8, 1}, {8, 15}, {15, 1}, {15, 8}, {15, 15}};
+  for (auto &coord : tripleWordCoords)
+    boardMultipliers[coord] = MultiplierType::TRIPLE_EQUATION;
 
-    // 3️⃣ Double Equation (Double Word)
-    std::pair<int,int> doubleWordCoords[] = {
-        {2,2},{2,14},{3,3},{3,13},{4,4},{4,12},{5,5},{5,11},
-        {8,8},{11,5},{11,11},{12,4},{12,12},{13,3},{13,13},{14,2},{14,14}
-    };
-    for(auto &coord : doubleWordCoords)
-        boardMultipliers[coord] = MultiplierType::DOUBLE_EQUATION;
+  // 3️⃣ Double Equation (Double Word)
+  std::pair<int, int> doubleWordCoords[] = {
+      {2, 2},   {2, 14}, {3, 3},   {3, 13}, {4, 4},   {4, 12},
+      {5, 5},   {5, 11}, {8, 8},   {11, 5}, {11, 11}, {12, 4},
+      {12, 12}, {13, 3}, {13, 13}, {14, 2}, {14, 14}};
+  for (auto &coord : doubleWordCoords)
+    boardMultipliers[coord] = MultiplierType::DOUBLE_EQUATION;
 
-    // 4️⃣ Triple Tile (Triple Letter)
-    std::pair<int,int> tripleTileCoords[] = {
-        {2,6},{2,10},{6,2},{6,6},{6,10},{6,14},
-        {10,2},{10,6},{10,10},{10,14},{14,6},{14,10}
-    };
-    for(auto &coord : tripleTileCoords)
-        boardMultipliers[coord] = MultiplierType::TRIPLE_TILE;
+  // 4️⃣ Triple Tile (Triple Letter)
+  std::pair<int, int> tripleTileCoords[] = {
+      {2, 6},  {2, 10}, {6, 2},   {6, 6},   {6, 10}, {6, 14},
+      {10, 2}, {10, 6}, {10, 10}, {10, 14}, {14, 6}, {14, 10}};
+  for (auto &coord : tripleTileCoords)
+    boardMultipliers[coord] = MultiplierType::TRIPLE_TILE;
 
-    // 5️⃣ Double Tile (Double Letter)
-    std::pair<int,int> doubleTileCoords[] = {
-        {1,4},{1,12},{3,7},{3,9},{4,1},{4,8},{4,15},{7,3},{7,7},{7,9},{7,13},
-        {8,4},{8,12},{9,3},{9,7},{9,9},{9,13},{12,1},{12,8},{12,15},{13,7},{13,9},{15,4},{15,12}
-    };
-    for(auto &coord : doubleTileCoords)
-        boardMultipliers[coord] = MultiplierType::DOUBLE_TILE;
+  // 5️⃣ Double Tile (Double Letter)
+  std::pair<int, int> doubleTileCoords[] = {
+      {1, 4},  {1, 12}, {3, 7},  {3, 9},   {4, 1},  {4, 8},  {4, 15}, {7, 3},
+      {7, 7},  {7, 9},  {7, 13}, {8, 4},   {8, 12}, {9, 3},  {9, 7},  {9, 9},
+      {9, 13}, {12, 1}, {12, 8}, {12, 15}, {13, 7}, {13, 9}, {15, 4}, {15, 12}};
+  for (auto &coord : doubleTileCoords)
+    boardMultipliers[coord] = MultiplierType::DOUBLE_TILE;
 }
 
-std::map<std::string, int> tileCount {
-    {"0", 5},
-    {"1", 5},
-    {"2", 5},
-    {"3", 5},
-    {"4", 5},
-    {"5", 5},
-    {"6", 5},
-    {"7", 5},
-    {"8", 5},
-    {"9", 5},
-    {"-", 8},
-    {"+", 8},
-    {"/", 8},
-    {"*", 8},
-    {"=", 25}
-    
+std::map<std::string, int> tileCount{{"0", 5}, {"1", 5}, {"2", 5}, {"3", 5},
+                                     {"4", 5}, {"5", 5}, {"6", 5}, {"7", 5},
+                                     {"8", 5}, {"9", 5}, {"-", 8}, {"+", 8},
+                                     {"/", 8}, {"*", 8}, {"=", 25}
+
 };
 
-std::map<std::string, int> tilePoints = {
-        {"0", 5},
-    {"1", 5},
-    {"2", 5},
-    {"3", 5},
-    {"4", 5},
-    {"5", 5},
-    {"6", 5},
-    {"7", 5},
-    {"8", 5},
-    {"9", 5},
-    {"-", 5},
-    {"+", 5},
-    {"/", 5},
-    {"*", 5},
-    {"=", 5}
-};
+std::map<std::string, int> tilePoints = {{"0", 5}, {"1", 5}, {"2", 5}, {"3", 5},
+                                         {"4", 5}, {"5", 5}, {"6", 5}, {"7", 5},
+                                         {"8", 5}, {"9", 5}, {"-", 5}, {"+", 5},
+                                         {"/", 5}, {"*", 5}, {"=", 5}};
 
 std::vector<std::string> createTileBag() {
-    std::vector<std::string> bag;
-    for(auto &[symbol, count]: tileCount) {
-        for(int i = 0; i < count; i++) {
-            bag.push_back(symbol);
-        }
-     }
-    std::random_device rd;
-    std::mt19937 g(rd());
-    std::shuffle(bag.begin(), bag.end(), g);
-    return bag;
+  std::vector<std::string> bag;
+  for (auto &[symbol, count] : tileCount) {
+    for (int i = 0; i < count; i++) {
+      bag.push_back(symbol);
+    }
+  }
+  std::random_device rd;
+  std::mt19937 g(rd());
+  std::shuffle(bag.begin(), bag.end(), g);
+  return bag;
+}
+
+std::vector<std::string> drawTiles(std::vector<std::string> &tileBag, int n) {
+  if (n > (int)tileBag.size()) {
+    throw std::runtime_error("Not enough tiles in the bag.");
+  }
+  std::vector<std::string> drawnTiles;
+  drawnTiles.insert(drawnTiles.end(), tileBag.end() - n, tileBag.end());
+  tileBag.erase(tileBag.end() - n, tileBag.end());
+  return drawnTiles;
 }
 
 bool isOccupied(std::vector<Json::Value> current_,
@@ -507,11 +490,31 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   Subscriber s;
   s.chatRoomName_ = req->getParameter("room_name");
   auto &room = rooms[s.chatRoomName_];
+  Json::Value init;
+  init["type"] = "init";
+  init["turn"] = room.currentTurn;
+
   if (!room.player1Conn) {
+    room.tileBag = createTileBag();
     room.player1Conn = wsConnPtr;
-  }
-  else if(!room.player2Conn) {
+    init["rack"] = Json::Value(Json::arrayValue);
+    auto rack = drawTiles(room.tileBag, 8);
+    room.player1Rack = rack;
+    for (auto tile : rack) {
+      init["rack"].append(tile);
+    }
+    init["sent"] = 1;
+  } else if (!room.player2Conn) {
     room.player2Conn = wsConnPtr;
+    init["rack"] = Json::Value(Json::arrayValue);
+    auto rack = drawTiles(room.tileBag, 8);
+    room.player2Rack = rack;
+    for (auto tile : rack) {
+      init["rack"].append(tile);
+    }
+    init["sent"] = 2;
+  } else {
+    init["error"] = "2 Players already connected";
   }
   s.id_ = chatRooms_.subscribe(
       s.chatRoomName_,
@@ -521,14 +524,6 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       });
   wsConnPtr->setContext(std::make_shared<Subscriber>(std::move(s)));
   initBoardMultipliers();
-  Json::Value init;
-  init["type"] = "init";
-  init["turn"] = room.currentTurn;
-  auto tileBag = createTileBag();
-  init["tilebag"] = Json::Value(Json::arrayValue);
-  for(auto tile: tileBag) {
-    init["tilebag"].append(tile);
-  }
   wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
 }
 void EchoWebsock::handleConnectionClosed(
