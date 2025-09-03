@@ -458,8 +458,40 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         chatRooms_.publish(s.chatRoomName_, jsonStr);
         return;
       }
+      std::string tileValue = payload["value"].asString();
+      auto &rack = (playerTurn == 1) ? room.player1Rack : room.player2Rack;
+      auto it = std::find(rack.begin(), rack.end(), tileValue);
+      if (it == rack.end()) {
+        response["type"] = "error";
+        response["message"] = "Tile not in rack.";
+        chatRooms_.publish(
+            s.chatRoomName_,
+            Json::writeString(Json::StreamWriterBuilder(), response));
+        return;
+      }
+      rack.erase(it);
       room.current_.push_back(payload);
     }
+    if(playerTurn == 1) {
+        auto& rack = room.player1Rack;
+        Json::Value msg;
+        msg["type"] = "rack";
+        msg["rack"] = Json::Value(Json::arrayValue);
+        for(auto& item: rack) {
+            msg["rack"].append(item);
+        }
+        room.player1Conn->send(Json::writeString(Json::StreamWriterBuilder(), msg));
+    } else {
+        auto& rack = room.player2Rack;
+        Json::Value msg;
+        msg["type"] = "rack";
+        msg["rack"] = Json::Value(Json::arrayValue);
+        for(auto& item: rack) {
+            msg["rack"].append(item);
+        }
+        room.player2Conn->send(Json::writeString(Json::StreamWriterBuilder(), msg));
+    }
+    
     response["type"] = "state";
     response["tiles"] = Json::Value(Json::arrayValue);
     for (auto &tile : room.state_) {
