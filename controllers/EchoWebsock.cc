@@ -605,6 +605,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       }
       response["affected"].append(arr);
     }
+    response["turn"] = room.currentTurn;
     Json::StreamWriterBuilder wbuilder;
     std::string jsonStr = Json::writeString(wbuilder, response);
     chatRooms_.publish(s.chatRoomName_, jsonStr);
