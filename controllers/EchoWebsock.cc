@@ -132,6 +132,24 @@ bool touchesExisting(const std::vector<Json::Value> &state,
   return false;
 }
 
+void reset(RoomState& room, int playerTurn) {
+    std::vector<std::string>& playerRack = (playerTurn == 1)?room.player1Rack: room.player2Rack;
+    for(auto& tile: room.current_) {
+        playerRack.push_back(tile["value"].asString());
+    }
+    room.current_.clear();
+    Json::Value response;
+    response["type"] = "reset";
+    response["rack"] = Json::Value(Json::arrayValue);
+    for(auto& tile: playerRack) {
+        response["rack"].append(tile);
+    }
+    WebSocketConnectionPtr wsConnPtr = (playerTurn == 1)?room.player1Conn:room.player2Conn;
+    if(wsConnPtr) {
+        wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), response));
+    }
+}
+
 bool isOccupied(std::vector<Json::Value> current_,
                 std::vector<Json::Value> state_, int row, int col) {
   for (auto &item : current_) {
@@ -417,7 +435,11 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           Json::writeString(Json::StreamWriterBuilder(), response));
       return;
     }
-    if (msgType == "evaluate") {
+    if(msgType == "reset") {
+        reset(room, playerTurn);
+        return;
+    }
+    else if (msgType == "evaluate") {
       if (room.state_.empty()) {
         if (!touchesCenter(room.current_)) {
 
