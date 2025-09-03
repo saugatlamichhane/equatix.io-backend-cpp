@@ -451,6 +451,13 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
 
           return;
         }
+      } else {
+          if(!touchesExisting(room.state_, room.current_)) {
+              response["type"] = "error";
+              response["messsage"] = "Move must connect to existing tiles.";
+              wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), response));
+              return;
+          }
       }
       response["affected"] = Json::Value(Json::arrayValue);
       auto affected = getAffectedEquations(room.state_, room.current_);
@@ -491,6 +498,21 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         room.state_.push_back(t);
       }
       room.current_.clear();
+      std::vector<std::string>& playerRack = (playerTurn == 1)?room.player1Rack:room.player2Rack;
+      auto newTiles = drawTiles(room.tileBag, 8-playerRack.size());
+      for(auto& tile: newTiles) {
+          playerRack.push_back(tile);
+      }
+      Json::Value rackJson;
+      rackJson["type"] = "rack";
+      rackJson["rack"]= Json::Value(Json::arrayValue);
+      for(auto& item: playerRack) {
+          rackJson["rack"].append(item);
+      }
+      WebSocketConnectionPtr wsConnPtr = (playerTurn==1)?room.player1Conn:room.player2Conn;
+      if(wsConnPtr) {
+          wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), rackJson));
+      }
       room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
       Json::StreamWriterBuilder wbuilder;
       std::string jsonStr = Json::writeString(wbuilder, response);
