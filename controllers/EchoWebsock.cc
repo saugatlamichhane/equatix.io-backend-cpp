@@ -10,6 +10,7 @@
 #include <string>
 #include <trantor/utils/Logger.h>
 #include <vector>
+#include <random>
 
 struct Subscriber {
   std::string chatRoomName_;
@@ -85,7 +86,7 @@ std::map<std::string, int> tileCount {
     
 };
 
-std::map<string, int> tilePoints = {
+std::map<std::string, int> tilePoints = {
         {"0", 5},
     {"1", 5},
     {"2", 5},
@@ -103,15 +104,15 @@ std::map<string, int> tilePoints = {
     {"=", 5}
 };
 
-std::vector<string> createTileBag() {
-    std::vector<string> bag;
+std::vector<std::string> createTileBag() {
+    std::vector<std::string> bag;
     for(auto &[symbol, count]: tileCount) {
         for(int i = 0; i < count; i++) {
             bag.push_back(symbol);
         }
      }
     std::random_device rd;
-    std::mt1997 g(rd());
+    std::mt19937 g(rd());
     std::shuffle(bag.begin(), bag.end(), g);
     return bag;
 }
