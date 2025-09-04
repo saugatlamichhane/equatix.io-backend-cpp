@@ -14,6 +14,8 @@ struct RoomState {
   std::vector<std::string> tileBag;
   std::vector<std::string> player1Rack;
   std::vector<std::string> player2Rack;
+  int score1 = 0;
+  int score2 = 0;
 };
 
 class EchoWebsock : public drogon::WebSocketController<EchoWebsock> {

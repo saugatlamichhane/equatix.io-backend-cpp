@@ -77,6 +77,42 @@ std::map<std::string, int> tilePoints = {{"0", 5}, {"1", 5}, {"2", 5}, {"3", 5},
                                          {"8", 5}, {"9", 5}, {"-", 5}, {"+", 5},
                                          {"/", 5}, {"*", 5}, {"=", 5}};
 
+int scoreEquation(const std::vector<Json::Value> &equation,
+                  const std::set<std::pair<int, int>> &newlyPlaced) {
+  int wordMultiplier = 1;
+  int score = 0;
+
+  for (auto &tile : equation) {
+    int r = tile["row"].asInt();
+    int c = tile["col"].asInt();
+    std::string val = tile["value"].asString();
+
+    int letterScore = tilePoints.at(val);
+    std::pair<int, int> pos = {r, c};
+
+    if (newlyPlaced.count(pos)) {
+      switch (boardMultipliers[pos]) {
+      case MultiplierType::DOUBLE_TILE:
+        letterScore *= 2;
+        break;
+      case MultiplierType::TRIPLE_TILE:
+        letterScore *= 3;
+        break;
+      case MultiplierType::DOUBLE_EQUATION:
+        wordMultiplier *= 2;
+        break;
+      case MultiplierType::TRIPLE_EQUATION:
+        wordMultiplier *= 3;
+        break;
+      default:
+        break;
+      }
+    }
+    score += letterScore;
+  }
+  return score * wordMultiplier;
+}
+
 std::vector<std::string> createTileBag() {
   std::vector<std::string> bag;
   for (auto &[symbol, count] : tileCount) {
@@ -507,8 +543,21 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         }
       }
       response["affected"] = Json::Value(Json::arrayValue);
+      int currentScore = 0;
       auto affected = getAffectedEquations(room.state_, room.current_);
       for (const auto &seq : affected) {
+        std::set<std::pair<int, int>> newlyPlaced;
+        for (const auto &tile : seq) {
+          for (const auto &placedTile : room.current_) {
+            if (tile["row"].asInt() == placedTile["row"].asInt() &&
+                tile["col"].asInt() == placedTile["col"].asInt()) {
+              newlyPlaced.insert(std::pair<int, int>
+                  {placedTile["row"].asInt(), placedTile["col"].asInt()});
+            }
+          }
+        }
+        currentScore += scoreEquation(seq, newlyPlaced);
+
         Json::Value arr(Json::arrayValue);
         for (const auto &tile : seq) {
           arr.append(tile);
@@ -540,6 +589,11 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         }
         affectedEquation["expressions"] = expressions;
         response["affected"].append(affectedEquation);
+      }
+      if(playerTurn == 1) {
+          room.score1 += currentScore;
+      } else {
+          room.score2 += currentScore;
       }
       for (auto &t : room.current_) {
         room.state_.push_back(t);
@@ -639,6 +693,8 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     for (auto &tile : room.state_) {
       response["tiles"].append(tile);
     }
+    response["Player1 Score"] = room.score1;
+    response["Player2 Score"] = room.score2;
     response["current tiles"] = Json::Value(Json::arrayValue);
     for (auto &tile : room.current_) {
       response["current tiles"].append(tile);
