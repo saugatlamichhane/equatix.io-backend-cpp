@@ -441,6 +441,11 @@ std::vector<std::string> splitEquation(const std::string &eq) {
   return parts;
 }
 
+auto checkEndGame = [](RoomState &room) {
+  return (room.tileBag.empty() &&
+          (room.player1Rack.empty() || room.player2Rack.empty())) ||
+         room.passes == 6;
+};
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                                    std::string &&message,
                                    const WebSocketMessageType &type) {
@@ -462,6 +467,14 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     auto &room = rooms[s.chatRoomName_];
     std::string msgType = root["type"].asString();
     int playerTurn = (wsConnPtr == room.player1Conn) ? 1 : 2;
+    if (checkEndGame(room)) {
+      response["type"] = "error";
+      response["message"] = "Game Already Over!";
+      chatRooms_.publish(
+          s.chatRoomName_,
+          Json::writeString(Json::StreamWriterBuilder(), response));
+      return;
+    }
     if ((msgType == "placement" || msgType == "evaluate") &&
         playerTurn != room.currentTurn) {
       response["type"] = "error";
@@ -477,6 +490,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       reset(room, playerTurn);
       return;
     } else if (msgType == "swap") {
+      room.passes++;
       const Json::Value &tilesToSwap = root["tiles"];
       auto &playerRack =
           (room.currentTurn == 1) ? room.player1Rack : room.player2Rack;
@@ -521,6 +535,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     } else if (msgType == "pass") {
       reset(room, playerTurn);
       room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
+      room.passes++;
     } else if (msgType == "evaluate") {
       if (room.state_.empty()) {
         if (!touchesCenter(room.current_)) {
@@ -551,8 +566,8 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           for (const auto &placedTile : room.current_) {
             if (tile["row"].asInt() == placedTile["row"].asInt() &&
                 tile["col"].asInt() == placedTile["col"].asInt()) {
-              newlyPlaced.insert(std::pair<int, int>
-                  {placedTile["row"].asInt(), placedTile["col"].asInt()});
+              newlyPlaced.insert(std::pair<int, int>{
+                  placedTile["row"].asInt(), placedTile["col"].asInt()});
             }
           }
         }
@@ -590,15 +605,16 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         affectedEquation["expressions"] = expressions;
         response["affected"].append(affectedEquation);
       }
-      if(playerTurn == 1) {
-          room.score1 += currentScore;
+      if (playerTurn == 1) {
+        room.score1 += currentScore;
       } else {
-          room.score2 += currentScore;
+        room.score2 += currentScore;
       }
       for (auto &t : room.current_) {
         room.state_.push_back(t);
       }
       room.current_.clear();
+      room.passes = 0;
       std::vector<std::string> &playerRack =
           (playerTurn == 1) ? room.player1Rack : room.player2Rack;
       auto newTiles = drawTiles(room.tileBag, 8 - playerRack.size());
@@ -709,9 +725,28 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       response["affected"].append(arr);
     }
     response["turn"] = room.currentTurn;
+    response["passes"] = room.passes;
     Json::StreamWriterBuilder wbuilder;
     std::string jsonStr = Json::writeString(wbuilder, response);
     chatRooms_.publish(s.chatRoomName_, jsonStr);
+    auto win = checkEndGame(room);
+    if (win) {
+      Json::Value winResponse;
+      winResponse["type"] = "game_over";
+      if (room.score1 > room.score2) {
+        winResponse["winner"] = 1;
+      } else if (room.score2 > room.score1) {
+        winResponse["winner"] = 2;
+      } else {
+        winResponse["winner"] = 0;
+      }
+      winResponse["score1"] = room.score1;
+      winResponse["score2"] = room.score2;
+
+      chatRooms_.publish(
+          s.chatRoomName_,
+          Json::writeString(Json::StreamWriterBuilder(), winResponse));
+    }
   }
 }
 void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
