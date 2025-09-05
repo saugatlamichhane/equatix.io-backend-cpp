@@ -760,6 +760,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   init["type"] = "init";
   init["turn"] = room.currentTurn;
 
+    init["room name"] = s.chatRoomName_;
   if (!room.player1Conn) {
     room.tileBag = createTileBag();
     room.player1Conn = wsConnPtr;
@@ -770,7 +771,6 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 1;
-    init["room name"] = s.chatRoomName_;
   } else if (!room.player2Conn) {
     room.player2Conn = wsConnPtr;
     init["rack"] = Json::Value(Json::arrayValue);
@@ -780,7 +780,6 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 2;
-    init["room name"] = s.chatRoomName_;
   } else {
     init["error"] = "2 Players already connected";
     wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
