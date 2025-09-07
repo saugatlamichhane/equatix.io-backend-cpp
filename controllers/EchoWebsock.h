@@ -17,6 +17,7 @@ struct RoomState {
   int score1 = 0;
   int score2 = 0;
   int passes = 0;
+  bool isBot = false;
 };
 
 class EchoWebsock : public drogon::WebSocketController<EchoWebsock> {

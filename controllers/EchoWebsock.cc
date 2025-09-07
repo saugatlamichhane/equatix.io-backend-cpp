@@ -584,6 +584,17 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           expr += tile["value"].asString();
         }
         auto parts = splitEquation(expr);
+        if (parts.size() < 2) {
+          Json::Value errorResponse;
+          errorResponse["type"] = "error";
+          errorResponse["message"] =
+              "Invalid equation (must contain '='): " + expr;
+          chatRooms_.publish(
+              s.chatRoomName_,
+              Json::writeString(Json::StreamWriterBuilder(), errorResponse));
+
+          return;
+        }
         Json::Value expressions(Json::arrayValue);
         auto val = evaluateExpression(parts[0]);
         for (const auto &part : parts) {
@@ -755,12 +766,19 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   LOG_DEBUG << "new websocket connection!";
   Subscriber s;
   s.chatRoomName_ = req->getParameter("room_name");
+  auto params = req->getParameters();
+
   auto &room = rooms[s.chatRoomName_];
+  if (params.find("isBot") != params.end() && params["isBot"] == "1") {
+    room.isBot = true;
+  } else {
+    room.isBot = false;
+  }
   Json::Value init;
   init["type"] = "init";
   init["turn"] = room.currentTurn;
 
-    init["room name"] = s.chatRoomName_;
+  init["room name"] = s.chatRoomName_;
   if (!room.player1Conn) {
     room.tileBag = createTileBag();
     room.player1Conn = wsConnPtr;
@@ -771,7 +789,12 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 1;
-  } else if (!room.player2Conn) {
+    if (room.isBot && !room.player2Conn) {
+      room.player2Conn = nullptr; // No actual connection for bot
+      auto rack = drawTiles(room.tileBag, 8);
+      room.player2Rack = rack;
+    }
+  } else if (!room.isBot && !room.player2Conn) {
     room.player2Conn = wsConnPtr;
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 8);

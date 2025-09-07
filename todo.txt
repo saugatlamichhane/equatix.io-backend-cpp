@@ -1,0 +1,25 @@
+Bot
+Authentication
+Game Replay
+Undo
+Hints
+Matchmaking 
+Invites
+Profile
+Elo System
+Leaderboard
+Coin System
+Clans 
+Tournaments
+Squad Game
+Game Review
+Daily Puzzles
+
+Tests
+
+Error handling
+Messages format consistency
+Bonus points on bingo and tiles finish
+
+Frontend
+Themes

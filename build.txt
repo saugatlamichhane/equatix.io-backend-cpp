@@ -1,0 +1,2 @@
+sudo docker build -t echo .
+sudo docker run -p 5555:5555 echo
