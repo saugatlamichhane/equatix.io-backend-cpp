@@ -59,7 +59,6 @@ RUN apt-get update && apt-get install -y \
     openssl \
     zlib1g-dev \
     libmysqlclient-dev \
-
     && rm -rf /var/lib/apt/lists/*
 
 # Copy compiled binary from builder
