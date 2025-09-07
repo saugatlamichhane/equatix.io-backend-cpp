@@ -40,14 +40,14 @@ RUN git clone https://github.com/Thalhammer/jwt-cpp.git external/jwt-cpp
 
 # Build project
 RUN mkdir build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DJWT_CPP_INCLUDE_DIR=../external/jwt-cpp/include && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
     make -j$(nproc)
 
 # ===========================
 # Stage 2: Runtime
 # ===========================
 FROM ubuntu:22.04
-ENV TZ=America/New_York
+ENV TZ=America/Chicago
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Install runtime dependencies only
