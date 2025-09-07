@@ -128,7 +128,7 @@ std::vector<std::string> createTileBag() {
 
 std::vector<std::string> drawTiles(std::vector<std::string> &tileBag, int n) {
   if (n > (int)tileBag.size()) {
-    throw std::runtime_error("Not enough tiles in the bag.");
+    n = tileBag.size();
   }
   std::vector<std::string> drawnTiles;
   drawnTiles.insert(drawnTiles.end(), tileBag.end() - n, tileBag.end());
