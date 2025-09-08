@@ -1,5 +1,4 @@
 #include <drogon/drogon.h>
-#include "controllers/Auth.h"
 
 void setupCors()
 {
@@ -79,7 +78,6 @@ void setupCors()
 
 int main() {
     //Set HTTP listener address and port
-    fetchFirebaseKeys();
     drogon::app().addListener("0.0.0.0", 5555);
     setupCors();
     //Load config file

@@ -29,10 +29,10 @@ const std::string Users::tableName = "\"users\"";
 
 const std::vector<typename Users::MetaData> Users::metaData_={
 {"id","int32_t","integer",4,1,1,1},
-{"uid","std::string","character varying",100,0,0,1},
-{"name","std::string","character varying",100,0,0,1},
-{"email","std::string","character varying",100,0,0,1},
-{"photo","std::string","character varying",100,0,0,0},
+{"uid","std::string","character varying",128,0,0,1},
+{"name","std::string","character varying",255,0,0,0},
+{"email","std::string","character varying",255,0,0,0},
+{"photo","std::string","text",0,0,0,0},
 {"elo","int32_t","integer",4,0,0,0},
 {"gamesplayed","int32_t","integer",4,0,0,0},
 {"wins","int32_t","integer",4,0,0,0},
@@ -562,6 +562,11 @@ void Users::setName(std::string &&pName) noexcept
     name_ = std::make_shared<std::string>(std::move(pName));
     dirtyFlag_[2] = true;
 }
+void Users::setNameToNull() noexcept
+{
+    name_.reset();
+    dirtyFlag_[2] = true;
+}
 
 const std::string &Users::getValueOfEmail() const noexcept
 {
@@ -582,6 +587,11 @@ void Users::setEmail(const std::string &pEmail) noexcept
 void Users::setEmail(std::string &&pEmail) noexcept
 {
     email_ = std::make_shared<std::string>(std::move(pEmail));
+    dirtyFlag_[3] = true;
+}
+void Users::setEmailToNull() noexcept
+{
+    email_.reset();
     dirtyFlag_[3] = true;
 }
 
@@ -1304,20 +1314,10 @@ bool Users::validateJsonForCreation(const Json::Value &pJson, std::string &err)
         if(!validJsonOfField(2, "name", pJson["name"], err, true))
             return false;
     }
-    else
-    {
-        err="The name column cannot be null";
-        return false;
-    }
     if(pJson.isMember("email"))
     {
         if(!validJsonOfField(3, "email", pJson["email"], err, true))
             return false;
-    }
-    else
-    {
-        err="The email column cannot be null";
-        return false;
     }
     if(pJson.isMember("photo"))
     {
@@ -1389,11 +1389,6 @@ bool Users::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(2, pMasqueradingVector[2], pJson[pMasqueradingVector[2]], err, true))
                   return false;
           }
-        else
-        {
-            err="The " + pMasqueradingVector[2] + " column cannot be null";
-            return false;
-        }
       }
       if(!pMasqueradingVector[3].empty())
       {
@@ -1402,11 +1397,6 @@ bool Users::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(3, pMasqueradingVector[3], pJson[pMasqueradingVector[3]], err, true))
                   return false;
           }
-        else
-        {
-            err="The " + pMasqueradingVector[3] + " column cannot be null";
-            return false;
-        }
       }
       if(!pMasqueradingVector[4].empty())
       {
@@ -1632,11 +1622,11 @@ bool Users::validJsonOfField(size_t index,
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
-            if(pJson.isString() && std::strlen(pJson.asCString()) > 100)
+            if(pJson.isString() && std::strlen(pJson.asCString()) > 128)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 100)";
+                    " field (the maximum value is 128)";
                 return false;
             }
 
@@ -1644,19 +1634,18 @@ bool Users::validJsonOfField(size_t index,
         case 2:
             if(pJson.isNull())
             {
-                err="The " + fieldName + " column cannot be null";
-                return false;
+                return true;
             }
             if(!pJson.isString())
             {
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
-            if(pJson.isString() && std::strlen(pJson.asCString()) > 100)
+            if(pJson.isString() && std::strlen(pJson.asCString()) > 255)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 100)";
+                    " field (the maximum value is 255)";
                 return false;
             }
 
@@ -1664,19 +1653,18 @@ bool Users::validJsonOfField(size_t index,
         case 3:
             if(pJson.isNull())
             {
-                err="The " + fieldName + " column cannot be null";
-                return false;
+                return true;
             }
             if(!pJson.isString())
             {
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
-            if(pJson.isString() && std::strlen(pJson.asCString()) > 100)
+            if(pJson.isString() && std::strlen(pJson.asCString()) > 255)
             {
                 err="String length exceeds limit for the " +
                     fieldName +
-                    " field (the maximum value is 100)";
+                    " field (the maximum value is 255)";
                 return false;
             }
 
@@ -1691,14 +1679,6 @@ bool Users::validJsonOfField(size_t index,
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
-            if(pJson.isString() && std::strlen(pJson.asCString()) > 100)
-            {
-                err="String length exceeds limit for the " +
-                    fieldName +
-                    " field (the maximum value is 100)";
-                return false;
-            }
-
             break;
         case 5:
             if(pJson.isNull())

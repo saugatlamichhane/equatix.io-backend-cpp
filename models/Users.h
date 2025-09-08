@@ -130,6 +130,7 @@ class Users
     ///Set the value of the column name
     void setName(const std::string &pName) noexcept;
     void setName(std::string &&pName) noexcept;
+    void setNameToNull() noexcept;
 
     /**  For column email  */
     ///Get the value of the column email, returns the default value if the column is null
@@ -139,6 +140,7 @@ class Users
     ///Set the value of the column email
     void setEmail(const std::string &pEmail) noexcept;
     void setEmail(std::string &&pEmail) noexcept;
+    void setEmailToNull() noexcept;
 
     /**  For column photo  */
     ///Get the value of the column photo, returns the default value if the column is null
@@ -279,30 +281,35 @@ class Users
             sql += "photo,";
             ++parametersCount;
         }
-        if(dirtyFlag_[5])
+        sql += "elo,";
+        ++parametersCount;
+        if(!dirtyFlag_[5])
         {
-            sql += "elo,";
-            ++parametersCount;
+            needSelection=true;
         }
-        if(dirtyFlag_[6])
+        sql += "gamesplayed,";
+        ++parametersCount;
+        if(!dirtyFlag_[6])
         {
-            sql += "gamesplayed,";
-            ++parametersCount;
+            needSelection=true;
         }
-        if(dirtyFlag_[7])
+        sql += "wins,";
+        ++parametersCount;
+        if(!dirtyFlag_[7])
         {
-            sql += "wins,";
-            ++parametersCount;
+            needSelection=true;
         }
-        if(dirtyFlag_[8])
+        sql += "losses,";
+        ++parametersCount;
+        if(!dirtyFlag_[8])
         {
-            sql += "losses,";
-            ++parametersCount;
+            needSelection=true;
         }
-        if(dirtyFlag_[9])
+        sql += "draws,";
+        ++parametersCount;
+        if(!dirtyFlag_[9])
         {
-            sql += "draws,";
-            ++parametersCount;
+            needSelection=true;
         }
         needSelection=true;
         if(parametersCount > 0)
@@ -342,25 +349,45 @@ class Users
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
         }
+        else
+        {
+            sql +="default,";
+        }
         if(dirtyFlag_[6])
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
+        }
+        else
+        {
+            sql +="default,";
         }
         if(dirtyFlag_[7])
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
         }
+        else
+        {
+            sql +="default,";
+        }
         if(dirtyFlag_[8])
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
         }
+        else
+        {
+            sql +="default,";
+        }
         if(dirtyFlag_[9])
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
+        }
+        else
+        {
+            sql +="default,";
         }
         if(parametersCount > 0)
         {
