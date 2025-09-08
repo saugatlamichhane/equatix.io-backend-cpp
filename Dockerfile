@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     postgresql-all \
     libssl-dev \
     zlib1g-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Drogon
@@ -58,6 +59,7 @@ RUN apt-get update && apt-get install -y \
     postgresql-all \
     openssl \
     zlib1g-dev \
+    curl \
     libmysqlclient-dev \
     && rm -rf /var/lib/apt/lists/*
 
