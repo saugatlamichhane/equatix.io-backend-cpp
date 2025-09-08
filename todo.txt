@@ -1,3 +1,7 @@
+Debug 
+Why token quickly invalidated
+Is Controller called even when Authentication fails
+
 Bot
 Authentication (Cache firebase keys)
 Game Replay
