@@ -1,7 +1,3 @@
-Debug 
-Why token quickly invalidated
-Is Controller called even when Authentication fails
-
 Bot
 Authentication (Cache firebase keys and refetch periodically)
 Game Replay
@@ -31,6 +27,7 @@ Tests
 Error handling
 Messages format consistency
 Bonus points on bingo and tiles finish
+implement cors block for non trusted origins
 
 Frontend
 Themes
