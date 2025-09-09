@@ -13,8 +13,6 @@
 #include <drogon/orm/Result.h>
 #include <trantor/utils/Logger.h>
 
-static std::unordered_map<std::string, std::string> firebaseKeys;
-static std::mutex keyMutex;
 
 using namespace drogon;
 
@@ -165,7 +163,7 @@ void FirebaseAuthFilter::doFilter(const HttpRequestPtr &req,
       LOG_DEBUG << "DB Error " << e.base().what();
       },
       uid, name, email, photo);
-
+  fccb();
       
   } catch (const std::exception &e) {
     LOG_ERROR << "Authentication Failed: " << e.what();
@@ -174,5 +172,4 @@ void FirebaseAuthFilter::doFilter(const HttpRequestPtr &req,
     fcb(res);
   }
 
-  fccb();
 }
