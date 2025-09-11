@@ -20,10 +20,12 @@ aux_source_directory(controllers CTL_SRC)
 aux_source_directory(filters FILTER_SRC)
 aux_source_directory(plugins PLUGIN_SRC)
 aux_source_directory(models MODEL_SRC)
+aux_source_directory(utils UTILS_SRC)
 
 add_executable(${PROJECT_NAME} main.cc     ${CTL_SRC}
     ${FILTER_SRC}
     ${PLUGIN_SRC}
+    ${UTILS_SRC}
     ${MODEL_SRC})
 
 # ##############################################################################

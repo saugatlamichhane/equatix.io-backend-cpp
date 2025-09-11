@@ -1,8 +1,12 @@
+#pragma once
+
 #include <json/json.h>
 #include <drogon/WebSocketConnection.h>
 #include <vector>
 #include <string>
+#include <drogon/WebSocketController.h>
 
+using namespace drogon;
 struct RoomState {
   std::vector<Json::Value> state_;
   std::vector<Json::Value> current_;

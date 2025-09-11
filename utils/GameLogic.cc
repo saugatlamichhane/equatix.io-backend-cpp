@@ -1,5 +1,8 @@
 #include "GameLogic.h"
 #include "RoomState.h"
+#include <random>
+#include <algorithm>
+#include "Board.h"
 
 void reset(RoomState &room, int playerTurn) {
   std::vector<std::string> &playerRack =
