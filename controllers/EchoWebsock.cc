@@ -10,12 +10,14 @@
 #include <stdexcept>
 #include <string>
 #include <trantor/utils/Logger.h>
+#include <type_traits>
 #include <vector>
 #include "../utils/Board.h"
 #include "../utils/GameLogic.h"
 #include "../utils/RoomState.h"
 #include "../utils/ValidatorHelpers.h"
 #include "../utils/BotPlayer.h"
+#include <variant>
 
 
 struct Subscriber {
@@ -216,13 +218,24 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       for (auto &item : playerRack) {
         rackJson["rack"].append(item);
       }
-      WebSocketConnectionPtr wsConnPtr =
-          (playerTurn == 1) ? room.player1Conn : room.player2Conn;
-      if (wsConnPtr) {
-        wsConnPtr->send(
+      if (playerTurn == 1) {
+        room.player1Conn->send(
             Json::writeString(Json::StreamWriterBuilder(), rackJson));
+        room.currentTurn = 2;
+      } else {
+          std::visit([&rackJson, &room](auto& obj) {
+                  using T = std::decay_t<decltype(obj)>;
+                  if constexpr (std::is_same_v<T, WebSocketConnectionPtr>) {
+                  obj->send(Json::writeString(Json::StreamWriterBuilder(), rackJson));
+                  room.currentTurn = 1;
+
+                  } else if constexpr(std::is_same_v<T, BotPlayer>) {
+                  obj.makeMove(room);
+
+                  }
+                  }, room.player2Conn);
+
       }
-      room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
       Json::StreamWriterBuilder wbuilder;
       std::string jsonStr = Json::writeString(wbuilder, response);
       chatRooms_.publish(s.chatRoomName_, jsonStr);
@@ -289,8 +302,17 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       for (auto &item : rack) {
         msg["rack"].append(item);
       }
-      room.player2Conn->send(
-          Json::writeString(Json::StreamWriterBuilder(), msg));
+      std::visit([msg, room](auto& obj) {
+                  using T = std::decay_t<decltype(obj)>;
+                  if constexpr (std::is_same_v<T, WebSocketConnectionPtr>) {
+                  obj->send(Json::writeString(Json::StreamWriterBuilder(), msg));
+
+                  } else if constexpr(std::is_same_v<T, BotPlayer>) {
+
+                  }
+                  }, room.player2Conn);
+
+
     }
 
     response["type"] = "state";
@@ -344,6 +366,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   LOG_DEBUG << "new websocket connection!";
   Subscriber s;
   s.chatRoomName_ = req->getParameter("room_name");
+  auto x = req->getParameter("isBot");
   auto params = req->getParameters();
 
   auto &room = rooms[s.chatRoomName_];
@@ -368,8 +391,11 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       room.player2Conn = BotPlayer(); // No actual connection for bot
       auto rack = drawTiles(room.tileBag, 8);
       room.player2Rack = rack;
+    } else {
+        room.player2Conn = nullptr;
     }
-  } else if (!room.player2Conn) {
+  } else if (auto conn = std::get_if<WebSocketConnectionPtr>(&room.player2Conn)) {
+    if(!*conn) {
     room.player2Conn = wsConnPtr;
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 8);
@@ -378,7 +404,8 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 2;
-  } else {
+    
+    } else {
     init["error"] = "2 Players already connected";
     wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
     s.id_ = chatRooms_.subscribe(
@@ -390,7 +417,23 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
     wsConnPtr->setContext(std::make_shared<Subscriber>(std::move(s)));
     wsConnPtr->forceClose();
     return;
-  }
+    }
+  } else {
+
+    init["error"] = "2 Players already connected";
+    wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
+    s.id_ = chatRooms_.subscribe(
+        s.chatRoomName_,
+        [wsConnPtr](const std::string &topic, const std::string &message) {
+          (void)topic;
+          wsConnPtr->send(message);
+        });
+    wsConnPtr->setContext(std::make_shared<Subscriber>(std::move(s)));
+    wsConnPtr->forceClose();
+    return;
+  } 
+
+  
   s.id_ = chatRooms_.subscribe(
       s.chatRoomName_,
       [wsConnPtr](const std::string &topic, const std::string &message) {
