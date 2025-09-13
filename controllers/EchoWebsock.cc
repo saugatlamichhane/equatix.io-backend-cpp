@@ -110,12 +110,42 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       }
       std::shuffle(room.tileBag.begin(), room.tileBag.end(),
                    std::mt19937{std::random_device{}()});
-      room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
+
+      if (playerTurn == 2) {
+        room.currentTurn = 1;
+      } else {
+          std::visit([&room](auto& obj) {
+                  using T = std::decay_t<decltype(obj)>;
+                  if constexpr (std::is_same_v<T, WebSocketConnectionPtr>) {
+                  room.currentTurn = 2;
+
+                  } else if constexpr(std::is_same_v<T, BotPlayer>) {
+                  obj.makeMove(room);
+
+                  }
+                  }, room.player2Conn);
+
+      }
 
     } else if (msgType == "pass") {
       reset(room, playerTurn);
-      room.currentTurn = (room.currentTurn == 1) ? 2 : 1;
       room.passes++;
+
+      if (playerTurn == 2) {
+        room.currentTurn = 1;
+      } else {
+          std::visit([&room](auto& obj) {
+                  using T = std::decay_t<decltype(obj)>;
+                  if constexpr (std::is_same_v<T, WebSocketConnectionPtr>) {
+                  room.currentTurn = 2;
+
+                  } else if constexpr(std::is_same_v<T, BotPlayer>) {
+                  obj.makeMove(room);
+
+                  }
+                  }, room.player2Conn);
+
+      }
     } else if (msgType == "evaluate") {
       if (room.state_.empty()) {
         if (!touchesCenter(room.current_)) {
@@ -218,16 +248,26 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       for (auto &item : playerRack) {
         rackJson["rack"].append(item);
       }
-      if (playerTurn == 1) {
-        room.player1Conn->send(
-            Json::writeString(Json::StreamWriterBuilder(), rackJson));
-        room.currentTurn = 2;
+      if (playerTurn == 2) {
+        room.currentTurn = 1;
+          std::visit([&rackJson, &room](auto& obj) {
+                  using T = std::decay_t<decltype(obj)>;
+
+                  if constexpr (std::is_same_v<T, WebSocketConnectionPtr>) {
+
+                  obj->send(Json::writeString(Json::StreamWriterBuilder(), rackJson));
+
+                  } else if constexpr(std::is_same_v<T, BotPlayer>) {
+
+                  }
+                  }, room.player2Conn);
       } else {
           std::visit([&rackJson, &room](auto& obj) {
                   using T = std::decay_t<decltype(obj)>;
+
+                  room.player1Conn->send(Json::writeString(Json::StreamWriterBuilder(), rackJson));
                   if constexpr (std::is_same_v<T, WebSocketConnectionPtr>) {
-                  obj->send(Json::writeString(Json::StreamWriterBuilder(), rackJson));
-                  room.currentTurn = 1;
+                  room.currentTurn = 2;
 
                   } else if constexpr(std::is_same_v<T, BotPlayer>) {
                   obj.makeMove(room);
