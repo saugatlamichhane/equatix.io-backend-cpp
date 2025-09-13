@@ -346,11 +346,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   auto params = req->getParameters();
 
   auto &room = rooms[s.chatRoomName_];
-  if (params.find("isBot") != params.end() && params["isBot"] == "1") {
-    room.isBot = true;
-  } else {
-    room.isBot = false;
-  }
+
   Json::Value init;
   init["type"] = "init";
   init["turn"] = room.currentTurn;
@@ -366,12 +362,13 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 1;
-    if (room.isBot && !room.player2Conn) {
-      room.player2Conn = nullptr; // No actual connection for bot
+    if (params.find("isBot") != params.end() && params["isBot"] == "1") {
+      
+      room.player2Conn = BotPlayer(); // No actual connection for bot
       auto rack = drawTiles(room.tileBag, 8);
       room.player2Rack = rack;
     }
-  } else if (!room.isBot && !room.player2Conn) {
+  } else if (!room.player2Conn) {
     room.player2Conn = wsConnPtr;
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 8);
