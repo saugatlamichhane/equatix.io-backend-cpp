@@ -15,6 +15,7 @@
 #include "../utils/GameLogic.h"
 #include "../utils/RoomState.h"
 #include "../utils/ValidatorHelpers.h"
+#include "../utils/BotPlayer.h"
 
 
 struct Subscriber {
