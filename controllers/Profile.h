@@ -11,7 +11,7 @@ class Profile : public drogon::HttpController<Profile> {
         METHOD_ADD(Profile::getInfo, "/{uid}", drogon::Get, "FirebaseAuthFilter");
         METHOD_LIST_END
 
-        void getInfo(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback, int uid) const;
+        void getInfo(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback, const std::string& uid) const;
 
         Profile();
 

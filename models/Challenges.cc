@@ -14,7 +14,7 @@ using namespace drogon::orm;
 using namespace drogon_model::equatix;
 
 const std::string Challenges::Cols::_id = "\"id\"";
-const std::string Challenges::Cols::_challenge_id = "\"challenge_id\"";
+const std::string Challenges::Cols::_challenger_id = "\"challenger_id\"";
 const std::string Challenges::Cols::_opponent_id = "\"opponent_id\"";
 const std::string Challenges::Cols::_status = "\"status\"";
 const std::string Challenges::Cols::_created_at = "\"created_at\"";
@@ -25,7 +25,7 @@ const std::string Challenges::tableName = "\"challenges\"";
 
 const std::vector<typename Challenges::MetaData> Challenges::metaData_={
 {"id","int32_t","integer",4,1,1,1},
-{"challenge_id","std::string","character varying",64,0,0,1},
+{"challenger_id","std::string","character varying",64,0,0,1},
 {"opponent_id","std::string","character varying",64,0,0,1},
 {"status","std::string","character varying",20,0,0,1},
 {"created_at","::trantor::Date","timestamp without time zone",0,0,0,0},
@@ -44,9 +44,9 @@ Challenges::Challenges(const Row &r, const ssize_t indexOffset) noexcept
         {
             id_=std::make_shared<int32_t>(r["id"].as<int32_t>());
         }
-        if(!r["challenge_id"].isNull())
+        if(!r["challenger_id"].isNull())
         {
-            challengeId_=std::make_shared<std::string>(r["challenge_id"].as<std::string>());
+            challengerId_=std::make_shared<std::string>(r["challenger_id"].as<std::string>());
         }
         if(!r["opponent_id"].isNull())
         {
@@ -118,7 +118,7 @@ Challenges::Challenges(const Row &r, const ssize_t indexOffset) noexcept
         index = offset + 1;
         if(!r[index].isNull())
         {
-            challengeId_=std::make_shared<std::string>(r[index].as<std::string>());
+            challengerId_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 2;
         if(!r[index].isNull())
@@ -200,7 +200,7 @@ Challenges::Challenges(const Json::Value &pJson, const std::vector<std::string> 
         dirtyFlag_[1] = true;
         if(!pJson[pMasqueradingVector[1]].isNull())
         {
-            challengeId_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
+            challengerId_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
         }
     }
     if(!pMasqueradingVector[2].empty() && pJson.isMember(pMasqueradingVector[2]))
@@ -283,12 +283,12 @@ Challenges::Challenges(const Json::Value &pJson) noexcept(false)
             id_=std::make_shared<int32_t>((int32_t)pJson["id"].asInt64());
         }
     }
-    if(pJson.isMember("challenge_id"))
+    if(pJson.isMember("challenger_id"))
     {
         dirtyFlag_[1]=true;
-        if(!pJson["challenge_id"].isNull())
+        if(!pJson["challenger_id"].isNull())
         {
-            challengeId_=std::make_shared<std::string>(pJson["challenge_id"].asString());
+            challengerId_=std::make_shared<std::string>(pJson["challenger_id"].asString());
         }
     }
     if(pJson.isMember("opponent_id"))
@@ -381,7 +381,7 @@ void Challenges::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[1] = true;
         if(!pJson[pMasqueradingVector[1]].isNull())
         {
-            challengeId_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
+            challengerId_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
         }
     }
     if(!pMasqueradingVector[2].empty() && pJson.isMember(pMasqueradingVector[2]))
@@ -463,12 +463,12 @@ void Challenges::updateByJson(const Json::Value &pJson) noexcept(false)
             id_=std::make_shared<int32_t>((int32_t)pJson["id"].asInt64());
         }
     }
-    if(pJson.isMember("challenge_id"))
+    if(pJson.isMember("challenger_id"))
     {
         dirtyFlag_[1] = true;
-        if(!pJson["challenge_id"].isNull())
+        if(!pJson["challenger_id"].isNull())
         {
-            challengeId_=std::make_shared<std::string>(pJson["challenge_id"].asString());
+            challengerId_=std::make_shared<std::string>(pJson["challenger_id"].asString());
         }
     }
     if(pJson.isMember("opponent_id"))
@@ -563,25 +563,25 @@ const typename Challenges::PrimaryKeyType & Challenges::getPrimaryKey() const
     return *id_;
 }
 
-const std::string &Challenges::getValueOfChallengeId() const noexcept
+const std::string &Challenges::getValueOfChallengerId() const noexcept
 {
     static const std::string defaultValue = std::string();
-    if(challengeId_)
-        return *challengeId_;
+    if(challengerId_)
+        return *challengerId_;
     return defaultValue;
 }
-const std::shared_ptr<std::string> &Challenges::getChallengeId() const noexcept
+const std::shared_ptr<std::string> &Challenges::getChallengerId() const noexcept
 {
-    return challengeId_;
+    return challengerId_;
 }
-void Challenges::setChallengeId(const std::string &pChallengeId) noexcept
+void Challenges::setChallengerId(const std::string &pChallengerId) noexcept
 {
-    challengeId_ = std::make_shared<std::string>(pChallengeId);
+    challengerId_ = std::make_shared<std::string>(pChallengerId);
     dirtyFlag_[1] = true;
 }
-void Challenges::setChallengeId(std::string &&pChallengeId) noexcept
+void Challenges::setChallengerId(std::string &&pChallengerId) noexcept
 {
-    challengeId_ = std::make_shared<std::string>(std::move(pChallengeId));
+    challengerId_ = std::make_shared<std::string>(std::move(pChallengerId));
     dirtyFlag_[1] = true;
 }
 
@@ -680,7 +680,7 @@ void Challenges::updateId(const uint64_t id)
 const std::vector<std::string> &Challenges::insertColumns() noexcept
 {
     static const std::vector<std::string> inCols={
-        "challenge_id",
+        "challenger_id",
         "opponent_id",
         "status",
         "created_at",
@@ -693,9 +693,9 @@ void Challenges::outputArgs(drogon::orm::internal::SqlBinder &binder) const
 {
     if(dirtyFlag_[1])
     {
-        if(getChallengeId())
+        if(getChallengerId())
         {
-            binder << getValueOfChallengeId();
+            binder << getValueOfChallengerId();
         }
         else
         {
@@ -778,9 +778,9 @@ void Challenges::updateArgs(drogon::orm::internal::SqlBinder &binder) const
 {
     if(dirtyFlag_[1])
     {
-        if(getChallengeId())
+        if(getChallengerId())
         {
-            binder << getValueOfChallengeId();
+            binder << getValueOfChallengerId();
         }
         else
         {
@@ -843,13 +843,13 @@ Json::Value Challenges::toJson() const
     {
         ret["id"]=Json::Value();
     }
-    if(getChallengeId())
+    if(getChallengerId())
     {
-        ret["challenge_id"]=getValueOfChallengeId();
+        ret["challenger_id"]=getValueOfChallengerId();
     }
     else
     {
-        ret["challenge_id"]=Json::Value();
+        ret["challenger_id"]=Json::Value();
     }
     if(getOpponentId())
     {
@@ -910,9 +910,9 @@ Json::Value Challenges::toMasqueradedJson(
         }
         if(!pMasqueradingVector[1].empty())
         {
-            if(getChallengeId())
+            if(getChallengerId())
             {
-                ret[pMasqueradingVector[1]]=getValueOfChallengeId();
+                ret[pMasqueradingVector[1]]=getValueOfChallengerId();
             }
             else
             {
@@ -974,13 +974,13 @@ Json::Value Challenges::toMasqueradedJson(
     {
         ret["id"]=Json::Value();
     }
-    if(getChallengeId())
+    if(getChallengerId())
     {
-        ret["challenge_id"]=getValueOfChallengeId();
+        ret["challenger_id"]=getValueOfChallengerId();
     }
     else
     {
-        ret["challenge_id"]=Json::Value();
+        ret["challenger_id"]=Json::Value();
     }
     if(getOpponentId())
     {
@@ -1024,14 +1024,14 @@ bool Challenges::validateJsonForCreation(const Json::Value &pJson, std::string &
         if(!validJsonOfField(0, "id", pJson["id"], err, true))
             return false;
     }
-    if(pJson.isMember("challenge_id"))
+    if(pJson.isMember("challenger_id"))
     {
-        if(!validJsonOfField(1, "challenge_id", pJson["challenge_id"], err, true))
+        if(!validJsonOfField(1, "challenger_id", pJson["challenger_id"], err, true))
             return false;
     }
     else
     {
-        err="The challenge_id column cannot be null";
+        err="The challenger_id column cannot be null";
         return false;
     }
     if(pJson.isMember("opponent_id"))
@@ -1149,9 +1149,9 @@ bool Challenges::validateJsonForUpdate(const Json::Value &pJson, std::string &er
         err = "The value of primary key must be set in the json object for update";
         return false;
     }
-    if(pJson.isMember("challenge_id"))
+    if(pJson.isMember("challenger_id"))
     {
-        if(!validJsonOfField(1, "challenge_id", pJson["challenge_id"], err, false))
+        if(!validJsonOfField(1, "challenger_id", pJson["challenger_id"], err, false))
             return false;
     }
     if(pJson.isMember("opponent_id"))

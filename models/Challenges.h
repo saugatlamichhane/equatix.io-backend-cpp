@@ -45,7 +45,7 @@ class Challenges
     struct Cols
     {
         static const std::string _id;
-        static const std::string _challenge_id;
+        static const std::string _challenger_id;
         static const std::string _opponent_id;
         static const std::string _status;
         static const std::string _created_at;
@@ -109,14 +109,14 @@ class Challenges
     ///Set the value of the column id
     void setId(const int32_t &pId) noexcept;
 
-    /**  For column challenge_id  */
-    ///Get the value of the column challenge_id, returns the default value if the column is null
-    const std::string &getValueOfChallengeId() const noexcept;
+    /**  For column challenger_id  */
+    ///Get the value of the column challenger_id, returns the default value if the column is null
+    const std::string &getValueOfChallengerId() const noexcept;
     ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
-    const std::shared_ptr<std::string> &getChallengeId() const noexcept;
-    ///Set the value of the column challenge_id
-    void setChallengeId(const std::string &pChallengeId) noexcept;
-    void setChallengeId(std::string &&pChallengeId) noexcept;
+    const std::shared_ptr<std::string> &getChallengerId() const noexcept;
+    ///Set the value of the column challenger_id
+    void setChallengerId(const std::string &pChallengerId) noexcept;
+    void setChallengerId(std::string &&pChallengerId) noexcept;
 
     /**  For column opponent_id  */
     ///Get the value of the column opponent_id, returns the default value if the column is null
@@ -178,7 +178,7 @@ class Challenges
     ///For mysql or sqlite3
     void updateId(const uint64_t id);
     std::shared_ptr<int32_t> id_;
-    std::shared_ptr<std::string> challengeId_;
+    std::shared_ptr<std::string> challengerId_;
     std::shared_ptr<std::string> opponentId_;
     std::shared_ptr<std::string> status_;
     std::shared_ptr<::trantor::Date> createdAt_;
@@ -216,7 +216,7 @@ class Challenges
             ++parametersCount;
         if(dirtyFlag_[1])
         {
-            sql += "challenge_id,";
+            sql += "challenger_id,";
             ++parametersCount;
         }
         if(dirtyFlag_[2])

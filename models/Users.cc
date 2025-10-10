@@ -13,7 +13,6 @@ using namespace drogon;
 using namespace drogon::orm;
 using namespace drogon_model::equatix;
 
-const std::string Users::Cols::_id = "\"id\"";
 const std::string Users::Cols::_uid = "\"uid\"";
 const std::string Users::Cols::_name = "\"name\"";
 const std::string Users::Cols::_email = "\"email\"";
@@ -23,13 +22,12 @@ const std::string Users::Cols::_gamesplayed = "\"gamesplayed\"";
 const std::string Users::Cols::_wins = "\"wins\"";
 const std::string Users::Cols::_losses = "\"losses\"";
 const std::string Users::Cols::_draws = "\"draws\"";
-const std::string Users::primaryKeyName = "id";
+const std::string Users::primaryKeyName = "uid";
 const bool Users::hasPrimaryKey = true;
 const std::string Users::tableName = "\"users\"";
 
 const std::vector<typename Users::MetaData> Users::metaData_={
-{"id","int32_t","integer",4,1,1,1},
-{"uid","std::string","character varying",128,0,0,1},
+{"uid","std::string","character varying",128,0,1,1},
 {"name","std::string","character varying",255,0,0,0},
 {"email","std::string","character varying",255,0,0,0},
 {"photo","std::string","text",0,0,0,0},
@@ -48,10 +46,6 @@ Users::Users(const Row &r, const ssize_t indexOffset) noexcept
 {
     if(indexOffset < 0)
     {
-        if(!r["id"].isNull())
-        {
-            id_=std::make_shared<int32_t>(r["id"].as<int32_t>());
-        }
         if(!r["uid"].isNull())
         {
             uid_=std::make_shared<std::string>(r["uid"].as<std::string>());
@@ -92,7 +86,7 @@ Users::Users(const Row &r, const ssize_t indexOffset) noexcept
     else
     {
         size_t offset = (size_t)indexOffset;
-        if(offset + 10 > r.size())
+        if(offset + 9 > r.size())
         {
             LOG_FATAL << "Invalid SQL result for this model";
             return;
@@ -101,49 +95,44 @@ Users::Users(const Row &r, const ssize_t indexOffset) noexcept
         index = offset + 0;
         if(!r[index].isNull())
         {
-            id_=std::make_shared<int32_t>(r[index].as<int32_t>());
+            uid_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 1;
         if(!r[index].isNull())
         {
-            uid_=std::make_shared<std::string>(r[index].as<std::string>());
+            name_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 2;
         if(!r[index].isNull())
         {
-            name_=std::make_shared<std::string>(r[index].as<std::string>());
+            email_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 3;
         if(!r[index].isNull())
         {
-            email_=std::make_shared<std::string>(r[index].as<std::string>());
+            photo_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 4;
         if(!r[index].isNull())
         {
-            photo_=std::make_shared<std::string>(r[index].as<std::string>());
+            elo_=std::make_shared<int32_t>(r[index].as<int32_t>());
         }
         index = offset + 5;
         if(!r[index].isNull())
         {
-            elo_=std::make_shared<int32_t>(r[index].as<int32_t>());
+            gamesplayed_=std::make_shared<int32_t>(r[index].as<int32_t>());
         }
         index = offset + 6;
         if(!r[index].isNull())
         {
-            gamesplayed_=std::make_shared<int32_t>(r[index].as<int32_t>());
+            wins_=std::make_shared<int32_t>(r[index].as<int32_t>());
         }
         index = offset + 7;
         if(!r[index].isNull())
         {
-            wins_=std::make_shared<int32_t>(r[index].as<int32_t>());
-        }
-        index = offset + 8;
-        if(!r[index].isNull())
-        {
             losses_=std::make_shared<int32_t>(r[index].as<int32_t>());
         }
-        index = offset + 9;
+        index = offset + 8;
         if(!r[index].isNull())
         {
             draws_=std::make_shared<int32_t>(r[index].as<int32_t>());
@@ -154,7 +143,7 @@ Users::Users(const Row &r, const ssize_t indexOffset) noexcept
 
 Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 10)
+    if(pMasqueradingVector.size() != 9)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -164,7 +153,7 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
         dirtyFlag_[0] = true;
         if(!pJson[pMasqueradingVector[0]].isNull())
         {
-            id_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[0]].asInt64());
+            uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[0]].asString());
         }
     }
     if(!pMasqueradingVector[1].empty() && pJson.isMember(pMasqueradingVector[1]))
@@ -172,7 +161,7 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
         dirtyFlag_[1] = true;
         if(!pJson[pMasqueradingVector[1]].isNull())
         {
-            uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
+            name_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
         }
     }
     if(!pMasqueradingVector[2].empty() && pJson.isMember(pMasqueradingVector[2]))
@@ -180,7 +169,7 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
         dirtyFlag_[2] = true;
         if(!pJson[pMasqueradingVector[2]].isNull())
         {
-            name_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
+            email_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
         }
     }
     if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
@@ -188,7 +177,7 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            email_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+            photo_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
         }
     }
     if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
@@ -196,7 +185,7 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
         dirtyFlag_[4] = true;
         if(!pJson[pMasqueradingVector[4]].isNull())
         {
-            photo_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
+            elo_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[4]].asInt64());
         }
     }
     if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
@@ -204,7 +193,7 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
         dirtyFlag_[5] = true;
         if(!pJson[pMasqueradingVector[5]].isNull())
         {
-            elo_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[5]].asInt64());
+            gamesplayed_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[5]].asInt64());
         }
     }
     if(!pMasqueradingVector[6].empty() && pJson.isMember(pMasqueradingVector[6]))
@@ -212,7 +201,7 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
         dirtyFlag_[6] = true;
         if(!pJson[pMasqueradingVector[6]].isNull())
         {
-            gamesplayed_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[6]].asInt64());
+            wins_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[6]].asInt64());
         }
     }
     if(!pMasqueradingVector[7].empty() && pJson.isMember(pMasqueradingVector[7]))
@@ -220,7 +209,7 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
         dirtyFlag_[7] = true;
         if(!pJson[pMasqueradingVector[7]].isNull())
         {
-            wins_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[7]].asInt64());
+            losses_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[7]].asInt64());
         }
     }
     if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
@@ -228,32 +217,16 @@ Users::Users(const Json::Value &pJson, const std::vector<std::string> &pMasquera
         dirtyFlag_[8] = true;
         if(!pJson[pMasqueradingVector[8]].isNull())
         {
-            losses_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[8]].asInt64());
-        }
-    }
-    if(!pMasqueradingVector[9].empty() && pJson.isMember(pMasqueradingVector[9]))
-    {
-        dirtyFlag_[9] = true;
-        if(!pJson[pMasqueradingVector[9]].isNull())
-        {
-            draws_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[9]].asInt64());
+            draws_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[8]].asInt64());
         }
     }
 }
 
 Users::Users(const Json::Value &pJson) noexcept(false)
 {
-    if(pJson.isMember("id"))
-    {
-        dirtyFlag_[0]=true;
-        if(!pJson["id"].isNull())
-        {
-            id_=std::make_shared<int32_t>((int32_t)pJson["id"].asInt64());
-        }
-    }
     if(pJson.isMember("uid"))
     {
-        dirtyFlag_[1]=true;
+        dirtyFlag_[0]=true;
         if(!pJson["uid"].isNull())
         {
             uid_=std::make_shared<std::string>(pJson["uid"].asString());
@@ -261,7 +234,7 @@ Users::Users(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("name"))
     {
-        dirtyFlag_[2]=true;
+        dirtyFlag_[1]=true;
         if(!pJson["name"].isNull())
         {
             name_=std::make_shared<std::string>(pJson["name"].asString());
@@ -269,7 +242,7 @@ Users::Users(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("email"))
     {
-        dirtyFlag_[3]=true;
+        dirtyFlag_[2]=true;
         if(!pJson["email"].isNull())
         {
             email_=std::make_shared<std::string>(pJson["email"].asString());
@@ -277,7 +250,7 @@ Users::Users(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("photo"))
     {
-        dirtyFlag_[4]=true;
+        dirtyFlag_[3]=true;
         if(!pJson["photo"].isNull())
         {
             photo_=std::make_shared<std::string>(pJson["photo"].asString());
@@ -285,7 +258,7 @@ Users::Users(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("elo"))
     {
-        dirtyFlag_[5]=true;
+        dirtyFlag_[4]=true;
         if(!pJson["elo"].isNull())
         {
             elo_=std::make_shared<int32_t>((int32_t)pJson["elo"].asInt64());
@@ -293,7 +266,7 @@ Users::Users(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("gamesplayed"))
     {
-        dirtyFlag_[6]=true;
+        dirtyFlag_[5]=true;
         if(!pJson["gamesplayed"].isNull())
         {
             gamesplayed_=std::make_shared<int32_t>((int32_t)pJson["gamesplayed"].asInt64());
@@ -301,7 +274,7 @@ Users::Users(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("wins"))
     {
-        dirtyFlag_[7]=true;
+        dirtyFlag_[6]=true;
         if(!pJson["wins"].isNull())
         {
             wins_=std::make_shared<int32_t>((int32_t)pJson["wins"].asInt64());
@@ -309,7 +282,7 @@ Users::Users(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("losses"))
     {
-        dirtyFlag_[8]=true;
+        dirtyFlag_[7]=true;
         if(!pJson["losses"].isNull())
         {
             losses_=std::make_shared<int32_t>((int32_t)pJson["losses"].asInt64());
@@ -317,7 +290,7 @@ Users::Users(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("draws"))
     {
-        dirtyFlag_[9]=true;
+        dirtyFlag_[8]=true;
         if(!pJson["draws"].isNull())
         {
             draws_=std::make_shared<int32_t>((int32_t)pJson["draws"].asInt64());
@@ -328,7 +301,7 @@ Users::Users(const Json::Value &pJson) noexcept(false)
 void Users::updateByMasqueradedJson(const Json::Value &pJson,
                                             const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 10)
+    if(pMasqueradingVector.size() != 9)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -337,7 +310,7 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
     {
         if(!pJson[pMasqueradingVector[0]].isNull())
         {
-            id_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[0]].asInt64());
+            uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[0]].asString());
         }
     }
     if(!pMasqueradingVector[1].empty() && pJson.isMember(pMasqueradingVector[1]))
@@ -345,7 +318,7 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[1] = true;
         if(!pJson[pMasqueradingVector[1]].isNull())
         {
-            uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
+            name_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
         }
     }
     if(!pMasqueradingVector[2].empty() && pJson.isMember(pMasqueradingVector[2]))
@@ -353,7 +326,7 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[2] = true;
         if(!pJson[pMasqueradingVector[2]].isNull())
         {
-            name_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
+            email_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
         }
     }
     if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
@@ -361,7 +334,7 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            email_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+            photo_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
         }
     }
     if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
@@ -369,7 +342,7 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[4] = true;
         if(!pJson[pMasqueradingVector[4]].isNull())
         {
-            photo_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
+            elo_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[4]].asInt64());
         }
     }
     if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
@@ -377,7 +350,7 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[5] = true;
         if(!pJson[pMasqueradingVector[5]].isNull())
         {
-            elo_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[5]].asInt64());
+            gamesplayed_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[5]].asInt64());
         }
     }
     if(!pMasqueradingVector[6].empty() && pJson.isMember(pMasqueradingVector[6]))
@@ -385,7 +358,7 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[6] = true;
         if(!pJson[pMasqueradingVector[6]].isNull())
         {
-            gamesplayed_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[6]].asInt64());
+            wins_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[6]].asInt64());
         }
     }
     if(!pMasqueradingVector[7].empty() && pJson.isMember(pMasqueradingVector[7]))
@@ -393,7 +366,7 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[7] = true;
         if(!pJson[pMasqueradingVector[7]].isNull())
         {
-            wins_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[7]].asInt64());
+            losses_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[7]].asInt64());
         }
     }
     if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
@@ -401,31 +374,15 @@ void Users::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[8] = true;
         if(!pJson[pMasqueradingVector[8]].isNull())
         {
-            losses_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[8]].asInt64());
-        }
-    }
-    if(!pMasqueradingVector[9].empty() && pJson.isMember(pMasqueradingVector[9]))
-    {
-        dirtyFlag_[9] = true;
-        if(!pJson[pMasqueradingVector[9]].isNull())
-        {
-            draws_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[9]].asInt64());
+            draws_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[8]].asInt64());
         }
     }
 }
 
 void Users::updateByJson(const Json::Value &pJson) noexcept(false)
 {
-    if(pJson.isMember("id"))
-    {
-        if(!pJson["id"].isNull())
-        {
-            id_=std::make_shared<int32_t>((int32_t)pJson["id"].asInt64());
-        }
-    }
     if(pJson.isMember("uid"))
     {
-        dirtyFlag_[1] = true;
         if(!pJson["uid"].isNull())
         {
             uid_=std::make_shared<std::string>(pJson["uid"].asString());
@@ -433,7 +390,7 @@ void Users::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("name"))
     {
-        dirtyFlag_[2] = true;
+        dirtyFlag_[1] = true;
         if(!pJson["name"].isNull())
         {
             name_=std::make_shared<std::string>(pJson["name"].asString());
@@ -441,7 +398,7 @@ void Users::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("email"))
     {
-        dirtyFlag_[3] = true;
+        dirtyFlag_[2] = true;
         if(!pJson["email"].isNull())
         {
             email_=std::make_shared<std::string>(pJson["email"].asString());
@@ -449,7 +406,7 @@ void Users::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("photo"))
     {
-        dirtyFlag_[4] = true;
+        dirtyFlag_[3] = true;
         if(!pJson["photo"].isNull())
         {
             photo_=std::make_shared<std::string>(pJson["photo"].asString());
@@ -457,7 +414,7 @@ void Users::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("elo"))
     {
-        dirtyFlag_[5] = true;
+        dirtyFlag_[4] = true;
         if(!pJson["elo"].isNull())
         {
             elo_=std::make_shared<int32_t>((int32_t)pJson["elo"].asInt64());
@@ -465,7 +422,7 @@ void Users::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("gamesplayed"))
     {
-        dirtyFlag_[6] = true;
+        dirtyFlag_[5] = true;
         if(!pJson["gamesplayed"].isNull())
         {
             gamesplayed_=std::make_shared<int32_t>((int32_t)pJson["gamesplayed"].asInt64());
@@ -473,7 +430,7 @@ void Users::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("wins"))
     {
-        dirtyFlag_[7] = true;
+        dirtyFlag_[6] = true;
         if(!pJson["wins"].isNull())
         {
             wins_=std::make_shared<int32_t>((int32_t)pJson["wins"].asInt64());
@@ -481,7 +438,7 @@ void Users::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("losses"))
     {
-        dirtyFlag_[8] = true;
+        dirtyFlag_[7] = true;
         if(!pJson["losses"].isNull())
         {
             losses_=std::make_shared<int32_t>((int32_t)pJson["losses"].asInt64());
@@ -489,34 +446,12 @@ void Users::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("draws"))
     {
-        dirtyFlag_[9] = true;
+        dirtyFlag_[8] = true;
         if(!pJson["draws"].isNull())
         {
             draws_=std::make_shared<int32_t>((int32_t)pJson["draws"].asInt64());
         }
     }
-}
-
-const int32_t &Users::getValueOfId() const noexcept
-{
-    static const int32_t defaultValue = int32_t();
-    if(id_)
-        return *id_;
-    return defaultValue;
-}
-const std::shared_ptr<int32_t> &Users::getId() const noexcept
-{
-    return id_;
-}
-void Users::setId(const int32_t &pId) noexcept
-{
-    id_ = std::make_shared<int32_t>(pId);
-    dirtyFlag_[0] = true;
-}
-const typename Users::PrimaryKeyType & Users::getPrimaryKey() const
-{
-    assert(id_);
-    return *id_;
 }
 
 const std::string &Users::getValueOfUid() const noexcept
@@ -533,12 +468,17 @@ const std::shared_ptr<std::string> &Users::getUid() const noexcept
 void Users::setUid(const std::string &pUid) noexcept
 {
     uid_ = std::make_shared<std::string>(pUid);
-    dirtyFlag_[1] = true;
+    dirtyFlag_[0] = true;
 }
 void Users::setUid(std::string &&pUid) noexcept
 {
     uid_ = std::make_shared<std::string>(std::move(pUid));
-    dirtyFlag_[1] = true;
+    dirtyFlag_[0] = true;
+}
+const typename Users::PrimaryKeyType & Users::getPrimaryKey() const
+{
+    assert(uid_);
+    return *uid_;
 }
 
 const std::string &Users::getValueOfName() const noexcept
@@ -555,17 +495,17 @@ const std::shared_ptr<std::string> &Users::getName() const noexcept
 void Users::setName(const std::string &pName) noexcept
 {
     name_ = std::make_shared<std::string>(pName);
-    dirtyFlag_[2] = true;
+    dirtyFlag_[1] = true;
 }
 void Users::setName(std::string &&pName) noexcept
 {
     name_ = std::make_shared<std::string>(std::move(pName));
-    dirtyFlag_[2] = true;
+    dirtyFlag_[1] = true;
 }
 void Users::setNameToNull() noexcept
 {
     name_.reset();
-    dirtyFlag_[2] = true;
+    dirtyFlag_[1] = true;
 }
 
 const std::string &Users::getValueOfEmail() const noexcept
@@ -582,17 +522,17 @@ const std::shared_ptr<std::string> &Users::getEmail() const noexcept
 void Users::setEmail(const std::string &pEmail) noexcept
 {
     email_ = std::make_shared<std::string>(pEmail);
-    dirtyFlag_[3] = true;
+    dirtyFlag_[2] = true;
 }
 void Users::setEmail(std::string &&pEmail) noexcept
 {
     email_ = std::make_shared<std::string>(std::move(pEmail));
-    dirtyFlag_[3] = true;
+    dirtyFlag_[2] = true;
 }
 void Users::setEmailToNull() noexcept
 {
     email_.reset();
-    dirtyFlag_[3] = true;
+    dirtyFlag_[2] = true;
 }
 
 const std::string &Users::getValueOfPhoto() const noexcept
@@ -609,17 +549,17 @@ const std::shared_ptr<std::string> &Users::getPhoto() const noexcept
 void Users::setPhoto(const std::string &pPhoto) noexcept
 {
     photo_ = std::make_shared<std::string>(pPhoto);
-    dirtyFlag_[4] = true;
+    dirtyFlag_[3] = true;
 }
 void Users::setPhoto(std::string &&pPhoto) noexcept
 {
     photo_ = std::make_shared<std::string>(std::move(pPhoto));
-    dirtyFlag_[4] = true;
+    dirtyFlag_[3] = true;
 }
 void Users::setPhotoToNull() noexcept
 {
     photo_.reset();
-    dirtyFlag_[4] = true;
+    dirtyFlag_[3] = true;
 }
 
 const int32_t &Users::getValueOfElo() const noexcept
@@ -636,12 +576,12 @@ const std::shared_ptr<int32_t> &Users::getElo() const noexcept
 void Users::setElo(const int32_t &pElo) noexcept
 {
     elo_ = std::make_shared<int32_t>(pElo);
-    dirtyFlag_[5] = true;
+    dirtyFlag_[4] = true;
 }
 void Users::setEloToNull() noexcept
 {
     elo_.reset();
-    dirtyFlag_[5] = true;
+    dirtyFlag_[4] = true;
 }
 
 const int32_t &Users::getValueOfGamesplayed() const noexcept
@@ -658,12 +598,12 @@ const std::shared_ptr<int32_t> &Users::getGamesplayed() const noexcept
 void Users::setGamesplayed(const int32_t &pGamesplayed) noexcept
 {
     gamesplayed_ = std::make_shared<int32_t>(pGamesplayed);
-    dirtyFlag_[6] = true;
+    dirtyFlag_[5] = true;
 }
 void Users::setGamesplayedToNull() noexcept
 {
     gamesplayed_.reset();
-    dirtyFlag_[6] = true;
+    dirtyFlag_[5] = true;
 }
 
 const int32_t &Users::getValueOfWins() const noexcept
@@ -680,12 +620,12 @@ const std::shared_ptr<int32_t> &Users::getWins() const noexcept
 void Users::setWins(const int32_t &pWins) noexcept
 {
     wins_ = std::make_shared<int32_t>(pWins);
-    dirtyFlag_[7] = true;
+    dirtyFlag_[6] = true;
 }
 void Users::setWinsToNull() noexcept
 {
     wins_.reset();
-    dirtyFlag_[7] = true;
+    dirtyFlag_[6] = true;
 }
 
 const int32_t &Users::getValueOfLosses() const noexcept
@@ -702,12 +642,12 @@ const std::shared_ptr<int32_t> &Users::getLosses() const noexcept
 void Users::setLosses(const int32_t &pLosses) noexcept
 {
     losses_ = std::make_shared<int32_t>(pLosses);
-    dirtyFlag_[8] = true;
+    dirtyFlag_[7] = true;
 }
 void Users::setLossesToNull() noexcept
 {
     losses_.reset();
-    dirtyFlag_[8] = true;
+    dirtyFlag_[7] = true;
 }
 
 const int32_t &Users::getValueOfDraws() const noexcept
@@ -724,12 +664,12 @@ const std::shared_ptr<int32_t> &Users::getDraws() const noexcept
 void Users::setDraws(const int32_t &pDraws) noexcept
 {
     draws_ = std::make_shared<int32_t>(pDraws);
-    dirtyFlag_[9] = true;
+    dirtyFlag_[8] = true;
 }
 void Users::setDrawsToNull() noexcept
 {
     draws_.reset();
-    dirtyFlag_[9] = true;
+    dirtyFlag_[8] = true;
 }
 
 void Users::updateId(const uint64_t id)
@@ -754,7 +694,7 @@ const std::vector<std::string> &Users::insertColumns() noexcept
 
 void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
 {
-    if(dirtyFlag_[1])
+    if(dirtyFlag_[0])
     {
         if(getUid())
         {
@@ -765,7 +705,7 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[2])
+    if(dirtyFlag_[1])
     {
         if(getName())
         {
@@ -776,7 +716,7 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[3])
+    if(dirtyFlag_[2])
     {
         if(getEmail())
         {
@@ -787,7 +727,7 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[4])
+    if(dirtyFlag_[3])
     {
         if(getPhoto())
         {
@@ -798,7 +738,7 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[5])
+    if(dirtyFlag_[4])
     {
         if(getElo())
         {
@@ -809,7 +749,7 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[6])
+    if(dirtyFlag_[5])
     {
         if(getGamesplayed())
         {
@@ -820,7 +760,7 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[7])
+    if(dirtyFlag_[6])
     {
         if(getWins())
         {
@@ -831,7 +771,7 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[8])
+    if(dirtyFlag_[7])
     {
         if(getLosses())
         {
@@ -842,7 +782,7 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[9])
+    if(dirtyFlag_[8])
     {
         if(getDraws())
         {
@@ -858,6 +798,10 @@ void Users::outputArgs(drogon::orm::internal::SqlBinder &binder) const
 const std::vector<std::string> Users::updateColumns() const
 {
     std::vector<std::string> ret;
+    if(dirtyFlag_[0])
+    {
+        ret.push_back(getColumnName(0));
+    }
     if(dirtyFlag_[1])
     {
         ret.push_back(getColumnName(1));
@@ -890,16 +834,12 @@ const std::vector<std::string> Users::updateColumns() const
     {
         ret.push_back(getColumnName(8));
     }
-    if(dirtyFlag_[9])
-    {
-        ret.push_back(getColumnName(9));
-    }
     return ret;
 }
 
 void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
 {
-    if(dirtyFlag_[1])
+    if(dirtyFlag_[0])
     {
         if(getUid())
         {
@@ -910,7 +850,7 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[2])
+    if(dirtyFlag_[1])
     {
         if(getName())
         {
@@ -921,7 +861,7 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[3])
+    if(dirtyFlag_[2])
     {
         if(getEmail())
         {
@@ -932,7 +872,7 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[4])
+    if(dirtyFlag_[3])
     {
         if(getPhoto())
         {
@@ -943,7 +883,7 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[5])
+    if(dirtyFlag_[4])
     {
         if(getElo())
         {
@@ -954,7 +894,7 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[6])
+    if(dirtyFlag_[5])
     {
         if(getGamesplayed())
         {
@@ -965,7 +905,7 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[7])
+    if(dirtyFlag_[6])
     {
         if(getWins())
         {
@@ -976,7 +916,7 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[8])
+    if(dirtyFlag_[7])
     {
         if(getLosses())
         {
@@ -987,7 +927,7 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[9])
+    if(dirtyFlag_[8])
     {
         if(getDraws())
         {
@@ -1002,14 +942,6 @@ void Users::updateArgs(drogon::orm::internal::SqlBinder &binder) const
 Json::Value Users::toJson() const
 {
     Json::Value ret;
-    if(getId())
-    {
-        ret["id"]=getValueOfId();
-    }
-    else
-    {
-        ret["id"]=Json::Value();
-    }
     if(getUid())
     {
         ret["uid"]=getValueOfUid();
@@ -1094,13 +1026,13 @@ Json::Value Users::toMasqueradedJson(
     const std::vector<std::string> &pMasqueradingVector) const
 {
     Json::Value ret;
-    if(pMasqueradingVector.size() == 10)
+    if(pMasqueradingVector.size() == 9)
     {
         if(!pMasqueradingVector[0].empty())
         {
-            if(getId())
+            if(getUid())
             {
-                ret[pMasqueradingVector[0]]=getValueOfId();
+                ret[pMasqueradingVector[0]]=getValueOfUid();
             }
             else
             {
@@ -1109,9 +1041,9 @@ Json::Value Users::toMasqueradedJson(
         }
         if(!pMasqueradingVector[1].empty())
         {
-            if(getUid())
+            if(getName())
             {
-                ret[pMasqueradingVector[1]]=getValueOfUid();
+                ret[pMasqueradingVector[1]]=getValueOfName();
             }
             else
             {
@@ -1120,9 +1052,9 @@ Json::Value Users::toMasqueradedJson(
         }
         if(!pMasqueradingVector[2].empty())
         {
-            if(getName())
+            if(getEmail())
             {
-                ret[pMasqueradingVector[2]]=getValueOfName();
+                ret[pMasqueradingVector[2]]=getValueOfEmail();
             }
             else
             {
@@ -1131,9 +1063,9 @@ Json::Value Users::toMasqueradedJson(
         }
         if(!pMasqueradingVector[3].empty())
         {
-            if(getEmail())
+            if(getPhoto())
             {
-                ret[pMasqueradingVector[3]]=getValueOfEmail();
+                ret[pMasqueradingVector[3]]=getValueOfPhoto();
             }
             else
             {
@@ -1142,9 +1074,9 @@ Json::Value Users::toMasqueradedJson(
         }
         if(!pMasqueradingVector[4].empty())
         {
-            if(getPhoto())
+            if(getElo())
             {
-                ret[pMasqueradingVector[4]]=getValueOfPhoto();
+                ret[pMasqueradingVector[4]]=getValueOfElo();
             }
             else
             {
@@ -1153,9 +1085,9 @@ Json::Value Users::toMasqueradedJson(
         }
         if(!pMasqueradingVector[5].empty())
         {
-            if(getElo())
+            if(getGamesplayed())
             {
-                ret[pMasqueradingVector[5]]=getValueOfElo();
+                ret[pMasqueradingVector[5]]=getValueOfGamesplayed();
             }
             else
             {
@@ -1164,9 +1096,9 @@ Json::Value Users::toMasqueradedJson(
         }
         if(!pMasqueradingVector[6].empty())
         {
-            if(getGamesplayed())
+            if(getWins())
             {
-                ret[pMasqueradingVector[6]]=getValueOfGamesplayed();
+                ret[pMasqueradingVector[6]]=getValueOfWins();
             }
             else
             {
@@ -1175,9 +1107,9 @@ Json::Value Users::toMasqueradedJson(
         }
         if(!pMasqueradingVector[7].empty())
         {
-            if(getWins())
+            if(getLosses())
             {
-                ret[pMasqueradingVector[7]]=getValueOfWins();
+                ret[pMasqueradingVector[7]]=getValueOfLosses();
             }
             else
             {
@@ -1186,37 +1118,18 @@ Json::Value Users::toMasqueradedJson(
         }
         if(!pMasqueradingVector[8].empty())
         {
-            if(getLosses())
+            if(getDraws())
             {
-                ret[pMasqueradingVector[8]]=getValueOfLosses();
+                ret[pMasqueradingVector[8]]=getValueOfDraws();
             }
             else
             {
                 ret[pMasqueradingVector[8]]=Json::Value();
             }
         }
-        if(!pMasqueradingVector[9].empty())
-        {
-            if(getDraws())
-            {
-                ret[pMasqueradingVector[9]]=getValueOfDraws();
-            }
-            else
-            {
-                ret[pMasqueradingVector[9]]=Json::Value();
-            }
-        }
         return ret;
     }
     LOG_ERROR << "Masquerade failed";
-    if(getId())
-    {
-        ret["id"]=getValueOfId();
-    }
-    else
-    {
-        ret["id"]=Json::Value();
-    }
     if(getUid())
     {
         ret["uid"]=getValueOfUid();
@@ -1294,14 +1207,9 @@ Json::Value Users::toMasqueradedJson(
 
 bool Users::validateJsonForCreation(const Json::Value &pJson, std::string &err)
 {
-    if(pJson.isMember("id"))
-    {
-        if(!validJsonOfField(0, "id", pJson["id"], err, true))
-            return false;
-    }
     if(pJson.isMember("uid"))
     {
-        if(!validJsonOfField(1, "uid", pJson["uid"], err, true))
+        if(!validJsonOfField(0, "uid", pJson["uid"], err, true))
             return false;
     }
     else
@@ -1311,42 +1219,42 @@ bool Users::validateJsonForCreation(const Json::Value &pJson, std::string &err)
     }
     if(pJson.isMember("name"))
     {
-        if(!validJsonOfField(2, "name", pJson["name"], err, true))
+        if(!validJsonOfField(1, "name", pJson["name"], err, true))
             return false;
     }
     if(pJson.isMember("email"))
     {
-        if(!validJsonOfField(3, "email", pJson["email"], err, true))
+        if(!validJsonOfField(2, "email", pJson["email"], err, true))
             return false;
     }
     if(pJson.isMember("photo"))
     {
-        if(!validJsonOfField(4, "photo", pJson["photo"], err, true))
+        if(!validJsonOfField(3, "photo", pJson["photo"], err, true))
             return false;
     }
     if(pJson.isMember("elo"))
     {
-        if(!validJsonOfField(5, "elo", pJson["elo"], err, true))
+        if(!validJsonOfField(4, "elo", pJson["elo"], err, true))
             return false;
     }
     if(pJson.isMember("gamesplayed"))
     {
-        if(!validJsonOfField(6, "gamesplayed", pJson["gamesplayed"], err, true))
+        if(!validJsonOfField(5, "gamesplayed", pJson["gamesplayed"], err, true))
             return false;
     }
     if(pJson.isMember("wins"))
     {
-        if(!validJsonOfField(7, "wins", pJson["wins"], err, true))
+        if(!validJsonOfField(6, "wins", pJson["wins"], err, true))
             return false;
     }
     if(pJson.isMember("losses"))
     {
-        if(!validJsonOfField(8, "losses", pJson["losses"], err, true))
+        if(!validJsonOfField(7, "losses", pJson["losses"], err, true))
             return false;
     }
     if(pJson.isMember("draws"))
     {
-        if(!validJsonOfField(9, "draws", pJson["draws"], err, true))
+        if(!validJsonOfField(8, "draws", pJson["draws"], err, true))
             return false;
     }
     return true;
@@ -1355,7 +1263,7 @@ bool Users::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                                                const std::vector<std::string> &pMasqueradingVector,
                                                std::string &err)
 {
-    if(pMasqueradingVector.size() != 10)
+    if(pMasqueradingVector.size() != 9)
     {
         err = "Bad masquerading vector";
         return false;
@@ -1368,6 +1276,11 @@ bool Users::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(0, pMasqueradingVector[0], pJson[pMasqueradingVector[0]], err, true))
                   return false;
           }
+        else
+        {
+            err="The " + pMasqueradingVector[0] + " column cannot be null";
+            return false;
+        }
       }
       if(!pMasqueradingVector[1].empty())
       {
@@ -1376,11 +1289,6 @@ bool Users::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(1, pMasqueradingVector[1], pJson[pMasqueradingVector[1]], err, true))
                   return false;
           }
-        else
-        {
-            err="The " + pMasqueradingVector[1] + " column cannot be null";
-            return false;
-        }
       }
       if(!pMasqueradingVector[2].empty())
       {
@@ -1438,14 +1346,6 @@ bool Users::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                   return false;
           }
       }
-      if(!pMasqueradingVector[9].empty())
-      {
-          if(pJson.isMember(pMasqueradingVector[9]))
-          {
-              if(!validJsonOfField(9, pMasqueradingVector[9], pJson[pMasqueradingVector[9]], err, true))
-                  return false;
-          }
-      }
     }
     catch(const Json::LogicError &e)
     {
@@ -1456,9 +1356,9 @@ bool Users::validateMasqueradedJsonForCreation(const Json::Value &pJson,
 }
 bool Users::validateJsonForUpdate(const Json::Value &pJson, std::string &err)
 {
-    if(pJson.isMember("id"))
+    if(pJson.isMember("uid"))
     {
-        if(!validJsonOfField(0, "id", pJson["id"], err, false))
+        if(!validJsonOfField(0, "uid", pJson["uid"], err, false))
             return false;
     }
     else
@@ -1466,49 +1366,44 @@ bool Users::validateJsonForUpdate(const Json::Value &pJson, std::string &err)
         err = "The value of primary key must be set in the json object for update";
         return false;
     }
-    if(pJson.isMember("uid"))
-    {
-        if(!validJsonOfField(1, "uid", pJson["uid"], err, false))
-            return false;
-    }
     if(pJson.isMember("name"))
     {
-        if(!validJsonOfField(2, "name", pJson["name"], err, false))
+        if(!validJsonOfField(1, "name", pJson["name"], err, false))
             return false;
     }
     if(pJson.isMember("email"))
     {
-        if(!validJsonOfField(3, "email", pJson["email"], err, false))
+        if(!validJsonOfField(2, "email", pJson["email"], err, false))
             return false;
     }
     if(pJson.isMember("photo"))
     {
-        if(!validJsonOfField(4, "photo", pJson["photo"], err, false))
+        if(!validJsonOfField(3, "photo", pJson["photo"], err, false))
             return false;
     }
     if(pJson.isMember("elo"))
     {
-        if(!validJsonOfField(5, "elo", pJson["elo"], err, false))
+        if(!validJsonOfField(4, "elo", pJson["elo"], err, false))
             return false;
     }
     if(pJson.isMember("gamesplayed"))
     {
-        if(!validJsonOfField(6, "gamesplayed", pJson["gamesplayed"], err, false))
+        if(!validJsonOfField(5, "gamesplayed", pJson["gamesplayed"], err, false))
             return false;
     }
     if(pJson.isMember("wins"))
     {
-        if(!validJsonOfField(7, "wins", pJson["wins"], err, false))
+        if(!validJsonOfField(6, "wins", pJson["wins"], err, false))
             return false;
     }
     if(pJson.isMember("losses"))
     {
-        if(!validJsonOfField(8, "losses", pJson["losses"], err, false))
+        if(!validJsonOfField(7, "losses", pJson["losses"], err, false))
             return false;
     }
     if(pJson.isMember("draws"))
     {
-        if(!validJsonOfField(9, "draws", pJson["draws"], err, false))
+        if(!validJsonOfField(8, "draws", pJson["draws"], err, false))
             return false;
     }
     return true;
@@ -1517,7 +1412,7 @@ bool Users::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
                                              const std::vector<std::string> &pMasqueradingVector,
                                              std::string &err)
 {
-    if(pMasqueradingVector.size() != 10)
+    if(pMasqueradingVector.size() != 9)
     {
         err = "Bad masquerading vector";
         return false;
@@ -1573,11 +1468,6 @@ bool Users::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
           if(!validJsonOfField(8, pMasqueradingVector[8], pJson[pMasqueradingVector[8]], err, false))
               return false;
       }
-      if(!pMasqueradingVector[9].empty() && pJson.isMember(pMasqueradingVector[9]))
-      {
-          if(!validJsonOfField(9, pMasqueradingVector[9], pJson[pMasqueradingVector[9]], err, false))
-              return false;
-      }
     }
     catch(const Json::LogicError &e)
     {
@@ -1600,23 +1490,6 @@ bool Users::validJsonOfField(size_t index,
                 err="The " + fieldName + " column cannot be null";
                 return false;
             }
-            if(isForCreation)
-            {
-                err="The automatic primary key cannot be set";
-                return false;
-            }
-            if(!pJson.isInt())
-            {
-                err="Type error in the "+fieldName+" field";
-                return false;
-            }
-            break;
-        case 1:
-            if(pJson.isNull())
-            {
-                err="The " + fieldName + " column cannot be null";
-                return false;
-            }
             if(!pJson.isString())
             {
                 err="Type error in the "+fieldName+" field";
@@ -1627,6 +1500,25 @@ bool Users::validJsonOfField(size_t index,
                 err="String length exceeds limit for the " +
                     fieldName +
                     " field (the maximum value is 128)";
+                return false;
+            }
+
+            break;
+        case 1:
+            if(pJson.isNull())
+            {
+                return true;
+            }
+            if(!pJson.isString())
+            {
+                err="Type error in the "+fieldName+" field";
+                return false;
+            }
+            if(pJson.isString() && std::strlen(pJson.asCString()) > 255)
+            {
+                err="String length exceeds limit for the " +
+                    fieldName +
+                    " field (the maximum value is 255)";
                 return false;
             }
 
@@ -1660,21 +1552,13 @@ bool Users::validJsonOfField(size_t index,
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
-            if(pJson.isString() && std::strlen(pJson.asCString()) > 255)
-            {
-                err="String length exceeds limit for the " +
-                    fieldName +
-                    " field (the maximum value is 255)";
-                return false;
-            }
-
             break;
         case 4:
             if(pJson.isNull())
             {
                 return true;
             }
-            if(!pJson.isString())
+            if(!pJson.isInt())
             {
                 err="Type error in the "+fieldName+" field";
                 return false;
@@ -1714,17 +1598,6 @@ bool Users::validJsonOfField(size_t index,
             }
             break;
         case 8:
-            if(pJson.isNull())
-            {
-                return true;
-            }
-            if(!pJson.isInt())
-            {
-                err="Type error in the "+fieldName+" field";
-                return false;
-            }
-            break;
-        case 9:
             if(pJson.isNull())
             {
                 return true;

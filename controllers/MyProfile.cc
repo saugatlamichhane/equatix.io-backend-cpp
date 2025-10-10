@@ -20,7 +20,6 @@ void MyProfile::getInfo(const drogon::HttpRequestPtr& req, std::function<void(co
     client->execSqlAsync("SELECT * FROM users WHERE uid = $1", 
             [callback] (const Result& r) {
                 Json::Value u;
-                u["id"] = r[0]["id"].as<int>();
                 u["uid"] = r[0]["uid"].as<std::string>();
                 u["name"] = r[0]["name"].as<std::string>();
                 u["elo"] = r[0]["elo"].as<int>();

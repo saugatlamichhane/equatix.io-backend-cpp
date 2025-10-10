@@ -15,7 +15,7 @@ Profile::Profile() { LOG_DEBUG << "Profile controller initialized"; }
 void Profile::getInfo(
     const drogon::HttpRequestPtr &req,
     std::function<void(const drogon::HttpResponsePtr &)> &&callback,
-    int uid) const {
+    const std::string& uid) const {
   auto client = drogon::app().getDbClient();
   Mapper<Users> mp(client);
 
@@ -23,7 +23,6 @@ void Profile::getInfo(
       uid,
       [callback](Users profile) {
         Json::Value result;
-        result["id"] = profile.getValueOfId();
                 result["name"] = profile.getValueOfName();
                 result["uid"] = profile.getValueOfUid();
                 result["email"] = profile.getValueOfEmail();
