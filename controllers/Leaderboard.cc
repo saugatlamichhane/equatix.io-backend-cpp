@@ -16,12 +16,11 @@ void Leaderboard::getLeaderboard(const drogon::HttpRequestPtr& req, std::functio
     auto client = drogon::app().getDbClient();
 
     client->execSqlAsync(
-            "SELECT id, uid, name, elo FROM users WHERE elo != 0 ORDER BY elo DESC LIMIT 100", [callback](const Result& r) {
+            "SELECT uid, name, elo FROM users WHERE elo != 0 ORDER BY elo DESC LIMIT 100", [callback](const Result& r) {
             Json::Value root;
             Json::Value jsonPlayers(Json::arrayValue);
             for(const auto &row: r) {
                 Json::Value u;
-                u["id"] = row["id"].as<int>();
                 u["uid"] = row["uid"].as<std::string>();
                 u["name"] = row["name"].as<std::string>();
                 u["elo"] = row["elo"].as<int>();
