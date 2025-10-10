@@ -27,7 +27,6 @@ void Player::getPlayer(const drogon::HttpRequestPtr& req,
             for(const auto& row : r) {
                 Json::Value jsonPlayer;
 
-                jsonPlayer["id"] = row["id"].as<int>();
                 jsonPlayer["name"] = row["name"].as<std::string>();
                 jsonPlayer["uid"] = row["uid"].as<std::string>();
                 jsonPlayer["elo"] = row["elo"].as<int>();
