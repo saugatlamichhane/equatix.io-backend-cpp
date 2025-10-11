@@ -166,7 +166,7 @@ void ChallengeController::listReceivedChallenges(const HttpRequestPtr &req,
     auto client = app().getDbClient();
 
     client->execSqlAsync(
-        "SELECT * FROM challenges WHERE opponent_id = $1 AND status = 'pending'",
+        "SELECT * FROM challenges WHERE opponent_id = $1",
         [callback](const Result &r) {
             Json::Value res;
             Json::Value challenges(Json::arrayValue);
