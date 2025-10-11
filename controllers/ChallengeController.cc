@@ -133,6 +133,7 @@ void ChallengeController::listSentChallenges(const HttpRequestPtr &req,
                 Json::Value challenge;
                 challenge["id"] = row["id"].as<std::string>();
                 challenge["opponent_id"] = row["opponent_id"].as<std::string>();
+                challenge["challenger_id"] = row["challenger_id"].as<std::string>();
                 challenge["status"] = row["status"].as<std::string>();
                 challenge["created_at"] = row["created_at"].as<std::string>();
                 challenges.append(challenge);
@@ -175,6 +176,7 @@ void ChallengeController::listReceivedChallenges(const HttpRequestPtr &req,
                 Json::Value challenge;
                 challenge["id"] = row["id"].as<std::string>();
                 challenge["challenger_id"] = row["challenger_id"].as<std::string>();
+                challenge["opponent_id"] = row["opponent_id"].as<std::string>();
                 challenge["status"] = row["status"].as<std::string>();
                 challenge["created_at"] = row["created_at"].as<std::string>();
                 challenges.append(challenge);
