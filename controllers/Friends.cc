@@ -41,10 +41,40 @@ void Friends::getFriends(
 
 void Friends::saveFriend(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback, std::string friend_uid) {
     auto client = drogon::app().getDbClient();  auto uid = req->attributes()->get<std::string>("uid");
-    client->execSqlAsync("INSERT INTO friends(uid, friend_uid) VALUES($1, $2)", [=](const drogon::orm::Result& r) {
+    client->execSqlAsync("INSERT INTO friends(uid, friend_uid) VALUES($1, $2)", [callback](const drogon::orm::Result& r) {
                 LOG_INFO << "Friend upserted successfully";
-            }, [](const drogon::orm::DrogonDbException& e) {
+                Json::Value res;
+                res["success"] = true;
+                res["message"] = "Friend added successfully";
+                auto resp = drogon::HttpResponse::newHttpJsonResponse(res);
+                callback(resp);
+            }, [callback](const drogon::orm::DrogonDbException& e) {
                 LOG_DEBUG << "DB Error: " << e.base().what();
+                Json::Value err;
+                err["success"] = false;
+                err["error"] = e.base().what();
+                auto resp = drogon::HttpResponse::newHttpJsonResponse(err);
+                resp->setStatusCode(drogon::k500InternalServerError);
+                callback(resp);
             }, uid, friend_uid);
 
+}
+
+void Friends::deleteFriend(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback, std::string friend_uid) {
+    auto client = drogon::app().getDbClient();
+    auto uid= req->attributes()->get<std::string>("uid");
+    client->execSqlAsync("DELETE FROM friends WHERE (uid = $1 AND friend_uid = $2)",
+            [callback] (const drogon::orm::Result& r) {
+                Json::Value res;
+                res["message"] = "Friend deleted successfully";
+                auto response = drogon::HttpResponse::newHttpJsonResponse(res);
+                callback(response);
+            },
+            [callback] (const drogon::orm::DrogonDbException& e) {
+                LOG_ERROR << "DB Error while deleting friend: " << e.base().what();
+                Json::Value err;
+                err["error"] = "Failed to delete friend";
+                auto response = drogon::HttpResponse::newHttpJsonResponse(err);
+                callback(response);
+            }, uid, friend_uid);
 }
