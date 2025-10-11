@@ -23,7 +23,7 @@ void ChallengeController::sendChallenge(const HttpRequestPtr &req,
     std::string challengerId = uidAttr;
 
     client->execSqlAsync(
-        "INSERT INTO challenges (challenger_id, opponent_id, status) VALUES ($1, $2, 'pending')",
+        "INSERT INTO challenges (challenger_id, opponent_id, status) SELECT $1, $2, 'pending' WHERE NOT EXISTS (SELECT 1 FROM challenges WHERE ((challenger_id=$1 AND opponent_id=$2) OR (challenger_id=$2 AND opponent_id=$1)) AND status IN ('pending', 'accepted'))",
         [callback](const Result &r) {
             Json::Value res;
             res["message"] = "Challenge sent successfully";
