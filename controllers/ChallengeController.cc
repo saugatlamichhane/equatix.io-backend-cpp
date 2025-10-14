@@ -26,7 +26,7 @@ void ChallengeController::sendChallenge(const HttpRequestPtr &req,
         "INSERT INTO challenges (challenger_id, opponent_id, status) SELECT $1::varchar, $2::varchar, 'pending' WHERE NOT EXISTS (SELECT 1 FROM challenges WHERE ((challenger_id=$1 AND opponent_id=$2) OR (challenger_id=$2 AND opponent_id=$1)) AND status IN ('pending', 'accepted'))",
         [callback](const Result &r) {
             Json::Value res;
-            res["message"] = "Challenge sent successfully";
+            res["success"] = true;
             auto resp = HttpResponse::newHttpJsonResponse(res);
             callback(resp);
         },
