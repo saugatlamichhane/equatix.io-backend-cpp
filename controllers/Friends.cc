@@ -20,7 +20,7 @@ void Friends::getFriends(
   auto uid = req->attributes()->get<std::string>("uid");
 
   client->execSqlAsync(
-          "SELECT u.uid, u.name, u.elo FROM friends f join users u on f.friend_uid = u.uid WHERE f.uid = $1",
+          "SELECT u.uid, u.name, u.elo, u.photo FROM friends f join users u on f.friend_uid = u.uid WHERE f.uid = $1",
       [callback, client](const Result &r) {
         Json::Value root;
         Json::Value jsonPlayers(Json::arrayValue);
@@ -28,6 +28,7 @@ void Friends::getFriends(
         Json::Value u;
         u["uid"] = row["uid"].as<std::string>();
         u["name"] = row["name"].as<std::string>();
+        u["photo"] = row["photo"].as<std::string>();
         u["elo"]=row["elo"].as<int>();
         jsonPlayers.append(u);
 
