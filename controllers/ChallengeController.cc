@@ -7,11 +7,14 @@
 using namespace drogon;
 using namespace drogon::orm;
 
+
 void ChallengeController::sendChallenge(const HttpRequestPtr &req,
                                         std::function<void(const HttpResponsePtr &)> &&callback,
-                                        const std::string &opponentId) {
+                                        const std::string &opponentId)
+{
     auto uidAttr = req->attributes()->get<std::string>("uid");
-    if (uidAttr.empty()) {
+    if (uidAttr.empty())
+    {
         Json::Value res;
         res["error"] = "Missing UID";
         auto resp = HttpResponse::newHttpJsonResponse(res);
@@ -19,16 +22,61 @@ void ChallengeController::sendChallenge(const HttpRequestPtr &req,
         return;
     }
 
-    auto client = app().getDbClient();
     std::string challengerId = uidAttr;
+    auto client = app().getDbClient();
 
+    // 1️⃣ Prevent sending challenge to oneself
+    if (challengerId == opponentId)
+    {
+        Json::Value res;
+        res["error"] = "You cannot challenge yourself.";
+        auto resp = HttpResponse::newHttpJsonResponse(res);
+        callback(resp);
+        return;
+    }
+
+    // 2️⃣ Check if opponent exists in users table
     client->execSqlAsync(
-        "INSERT INTO challenges (challenger_id, opponent_id, status) SELECT $1::varchar, $2::varchar, 'pending' WHERE NOT EXISTS (SELECT 1 FROM challenges WHERE ((challenger_id=$1 AND opponent_id=$2) OR (challenger_id=$2 AND opponent_id=$1)) AND status IN ('pending', 'accepted'))",
-        [callback](const Result &r) {
-            Json::Value res;
-            res["success"] = true;
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
+        "SELECT uid FROM users WHERE uid = $1 LIMIT 1",
+        [client, callback, challengerId, opponentId](const Result &r) {
+            if (r.empty())
+            {
+                Json::Value res;
+                res["error"] = "Opponent not found.";
+                auto resp = HttpResponse::newHttpJsonResponse(res);
+                callback(resp);
+                return;
+            }
+
+            // 3️⃣ Opponent exists, now insert challenge if not already pending/accepted
+            client->execSqlAsync(
+                "INSERT INTO challenges (challenger_id, opponent_id, status) "
+                "SELECT $1::varchar, $2::varchar, 'pending' "
+                "WHERE NOT EXISTS (SELECT 1 FROM challenges "
+                "WHERE ((challenger_id=$1 AND opponent_id=$2) OR "
+                "(challenger_id=$2 AND opponent_id=$1)) "
+                "AND status IN ('pending', 'accepted'))",
+                [callback](const Result &r2) {
+                    Json::Value res;
+                    if (r2.affectedRows() == 0)
+                    {
+                        res["error"] = "A challenge already exists between these players.";
+                    }
+                    else
+                    {
+                        res["success"] = true;
+                        res["message"] = "Challenge sent successfully.";
+                    }
+                    auto resp = HttpResponse::newHttpJsonResponse(res);
+                    callback(resp);
+                },
+                [callback](const DrogonDbException &e) {
+                    Json::Value res;
+                    res["error"] = e.base().what();
+                    auto resp = HttpResponse::newHttpJsonResponse(res);
+                    callback(resp);
+                },
+                challengerId, opponentId);
         },
         [callback](const DrogonDbException &e) {
             Json::Value res;
@@ -36,9 +84,8 @@ void ChallengeController::sendChallenge(const HttpRequestPtr &req,
             auto resp = HttpResponse::newHttpJsonResponse(res);
             callback(resp);
         },
-        challengerId, opponentId);
+        opponentId);
 }
-
 void ChallengeController::acceptChallenge(const HttpRequestPtr &req,
                                           std::function<void(const HttpResponsePtr &)> &&callback,
                                           const std::string &challengeId) {
