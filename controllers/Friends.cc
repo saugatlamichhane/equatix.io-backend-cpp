@@ -40,25 +40,89 @@ void Friends::getFriends(
       [](const DrogonDbException &e) { LOG_ERROR << e.base().what(); }, uid);
 }
 
-void Friends::saveFriend(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback, std::string friend_uid) {
-    auto client = drogon::app().getDbClient();  auto uid = req->attributes()->get<std::string>("uid");
-    client->execSqlAsync("INSERT INTO friends(uid, friend_uid) VALUES($1, $2)", [callback](const drogon::orm::Result& r) {
-                LOG_INFO << "Friend upserted successfully";
+void Friends::saveFriend(const drogon::HttpRequestPtr &req,
+                         std::function<void(const drogon::HttpResponsePtr &)> &&callback,
+                         std::string friend_uid)
+{
+    auto client = drogon::app().getDbClient();
+    auto uid = req->attributes()->get<std::string>("uid");
+
+    // 1️⃣ Prevent adding oneself as a friend
+    if (uid == friend_uid)
+    {
+        Json::Value res;
+        res["success"] = false;
+        res["error"] = "You cannot add yourself as a friend.";
+        auto resp = drogon::HttpResponse::newHttpJsonResponse(res);
+        callback(resp);
+        return;
+    }
+
+    // 2️⃣ Check if the friend UID exists in users table
+    client->execSqlAsync(
+        "SELECT uid FROM users WHERE uid = $1 LIMIT 1",
+        [client, uid, friend_uid, callback](const drogon::orm::Result &r) {
+            if (r.empty())
+            {
                 Json::Value res;
-                res["success"] = true;
-                res["message"] = "Friend added successfully";
+                res["success"] = false;
+                res["error"] = "User not found.";
                 auto resp = drogon::HttpResponse::newHttpJsonResponse(res);
                 callback(resp);
-            }, [callback](const drogon::orm::DrogonDbException& e) {
-                LOG_DEBUG << "DB Error: " << e.base().what();
-                Json::Value err;
-                err["success"] = false;
-                err["error"] = e.base().what();
-                auto resp = drogon::HttpResponse::newHttpJsonResponse(err);
-                resp->setStatusCode(drogon::k500InternalServerError);
-                callback(resp);
-            }, uid, friend_uid);
+                return;
+            }
 
+            // 3️⃣ Check if friendship already exists (either direction)
+            client->execSqlAsync(
+                "SELECT 1 FROM friends WHERE (uid = $1 AND friend_uid = $2) LIMIT 1",
+                [client, uid, friend_uid, callback](const drogon::orm::Result &r2) {
+                    if (!r2.empty())
+                    {
+                        Json::Value res;
+                        res["success"] = false;
+                        res["error"] = "Friendship already exists.";
+                        auto resp = drogon::HttpResponse::newHttpJsonResponse(res);
+                        callback(resp);
+                        return;
+                    }
+
+                    // 4️⃣ Insert the new friend
+                    client->execSqlAsync(
+                        "INSERT INTO friends(uid, friend_uid) VALUES($1, $2)",
+                        [callback](const drogon::orm::Result &r3) {
+                            Json::Value res;
+                            res["success"] = true;
+                            res["message"] = "Friend added successfully.";
+                            auto resp = drogon::HttpResponse::newHttpJsonResponse(res);
+                            callback(resp);
+                        },
+                        [callback](const drogon::orm::DrogonDbException &e) {
+                            Json::Value err;
+                            err["success"] = false;
+                            err["error"] = e.base().what();
+                            auto resp = drogon::HttpResponse::newHttpJsonResponse(err);
+                            resp->setStatusCode(drogon::k500InternalServerError);
+                            callback(resp);
+                        },
+                        uid, friend_uid);
+                },
+                [callback](const drogon::orm::DrogonDbException &e) {
+                    Json::Value err;
+                    err["success"] = false;
+                    err["error"] = e.base().what();
+                    auto resp = drogon::HttpResponse::newHttpJsonResponse(err);
+                    callback(resp);
+                },
+                uid, friend_uid);
+        },
+        [callback](const drogon::orm::DrogonDbException &e) {
+            Json::Value err;
+            err["success"] = false;
+            err["error"] = e.base().what();
+            auto resp = drogon::HttpResponse::newHttpJsonResponse(err);
+            callback(resp);
+        },
+        friend_uid);
 }
 
 void Friends::deleteFriend(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback, std::string friend_uid) {
