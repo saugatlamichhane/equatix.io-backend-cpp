@@ -554,7 +554,7 @@ void Clans::rejectInvite(const HttpRequestPtr& req,
     auto client = app().getDbClient();
 
     client->execSqlAsync(
-        "DELETE FROM clan_invites WHERE clan_id=$1 AND uid=$2",
+        "DELETE FROM clan_invites WHERE clan_id=$1 AND invited_user_id=$2",
         [callback](const Result&) {
             Json::Value root;
             root["status"] = "Invite rejected";
