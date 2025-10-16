@@ -322,6 +322,7 @@ void Clans::acceptRequest(const HttpRequestPtr& req,
     auto uid = req->attributes()->get<std::string>("uid");
     auto client = app().getDbClient();
 
+    // Step 1: Check if the requester is the clan leader
     client->execSqlAsync(
         "SELECT id FROM clans WHERE created_by = $1",
         [client, callback, targetUid](const Result& r) {
@@ -334,16 +335,33 @@ void Clans::acceptRequest(const HttpRequestPtr& req,
             }
 
             std::string clanId = r[0]["id"].as<std::string>();
+
+            // Step 2: Insert member
             client->execSqlAsync(
-                "INSERT INTO clan_members (clan_id, uid, role) VALUES ($1, $2, 'member'); DELETE FROM clan_requests WHERE clan_id=$1 AND uid=$2;",
-                [callback](const Result&) {
-                    Json::Value root;
-                    root["status"] = "Request accepted";
-                    auto resp = HttpResponse::newHttpJsonResponse(root);
-                    callback(resp);
+                "INSERT INTO clan_members (id, clan_id, user_id, role) VALUES (gen_random_uuid(), $1, $2, 'member');",
+                [client, callback, clanId, targetUid](const Result&) {
+                    // Step 3: Delete the request
+                    client->execSqlAsync(
+                        "DELETE FROM clan_join_requests WHERE clan_id=$1 AND user_id=$2;",
+                        [callback](const Result&) {
+                            Json::Value root;
+                            root["status"] = "Request accepted";
+                            auto resp = HttpResponse::newHttpJsonResponse(root);
+                            callback(resp);
+                        },
+                        [callback](const DrogonDbException& e) {
+                            LOG_ERROR << "Error deleting request: " << e.base().what();
+                            Json::Value root;
+                            root["error"] = e.base().what();
+                            auto resp = HttpResponse::newHttpJsonResponse(root);
+                            resp->setStatusCode(k500InternalServerError);
+                            callback(resp);
+                        },
+                        clanId, targetUid
+                    );
                 },
                 [callback](const DrogonDbException& e) {
-                    LOG_ERROR << "Error accepting request: " << e.base().what();
+                    LOG_ERROR << "Error inserting member: " << e.base().what();
                     Json::Value root;
                     root["error"] = e.base().what();
                     auto resp = HttpResponse::newHttpJsonResponse(root);
@@ -354,7 +372,7 @@ void Clans::acceptRequest(const HttpRequestPtr& req,
             );
         },
         [callback](const DrogonDbException& e) {
-            LOG_ERROR << "Error checking leader for accept: " << e.base().what();
+            LOG_ERROR << "Error checking leader: " << e.base().what();
             Json::Value root;
             root["error"] = e.base().what();
             auto resp = HttpResponse::newHttpJsonResponse(root);
@@ -364,6 +382,7 @@ void Clans::acceptRequest(const HttpRequestPtr& req,
         uid
     );
 }
+
 
 // ----------------------------------------------------
 // REJECT REQUEST
