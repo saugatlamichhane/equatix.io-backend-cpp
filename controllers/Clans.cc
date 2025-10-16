@@ -510,16 +510,32 @@ void Clans::acceptInvite(const HttpRequestPtr& req,
     auto uid = req->attributes()->get<std::string>("uid");
     auto client = app().getDbClient();
 
+    // First: insert into clan_members
     client->execSqlAsync(
-        "INSERT INTO clan_members (clan_id, uid, role) VALUES ($1, $2, 'member'); DELETE FROM clan_invites WHERE clan_id=$1 AND uid=$2;",
-        [callback](const Result&) {
-            Json::Value root;
-            root["status"] = "Invite accepted";
-            auto resp = HttpResponse::newHttpJsonResponse(root);
-            callback(resp);
+        "INSERT INTO clan_members (id, clan_id, user_id, role) VALUES (gen_random_uuid(), $1, $2, 'member');",
+        [callback, client, clanId, uid](const Result&) {
+            // Second: delete invite
+            client->execSqlAsync(
+                "DELETE FROM clan_invites WHERE clan_id=$1 AND invited_user_id=$2;",
+                [callback](const Result&) {
+                    Json::Value root;
+                    root["status"] = "Invite accepted";
+                    auto resp = HttpResponse::newHttpJsonResponse(root);
+                    callback(resp);
+                },
+                [callback](const DrogonDbException& e) {
+                    LOG_ERROR << "Error deleting invite: " << e.base().what();
+                    Json::Value root;
+                    root["error"] = e.base().what();
+                    auto resp = HttpResponse::newHttpJsonResponse(root);
+                    resp->setStatusCode(k500InternalServerError);
+                    callback(resp);
+                },
+                clanId, uid
+            );
         },
         [callback](const DrogonDbException& e) {
-            LOG_ERROR << "Error accepting invite: " << e.base().what();
+            LOG_ERROR << "Error inserting member: " << e.base().what();
             Json::Value root;
             root["error"] = e.base().what();
             auto resp = HttpResponse::newHttpJsonResponse(root);
@@ -529,6 +545,7 @@ void Clans::acceptInvite(const HttpRequestPtr& req,
         clanId, uid
     );
 }
+
 
 void Clans::rejectInvite(const HttpRequestPtr& req,
                          std::function<void(const HttpResponsePtr&)>&& callback,
