@@ -394,7 +394,7 @@ void Clans::rejectRequest(const HttpRequestPtr& req,
     auto client = app().getDbClient();
 
     client->execSqlAsync(
-        "SELECT clan_id FROM clans WHERE leader_uid = $1",
+        "SELECT id FROM clans WHERE created_by = $1",
         [client, callback, targetUid](const Result& r) {
             if (r.empty()) {
                 Json::Value root;
@@ -403,9 +403,9 @@ void Clans::rejectRequest(const HttpRequestPtr& req,
                 resp->setStatusCode(k403Forbidden);
                 return callback(resp);
             }
-            std::string clanId = r[0]["clan_id"].as<std::string>();
+            std::string clanId = r[0]["id"].as<std::string>();
             client->execSqlAsync(
-                "DELETE FROM clan_requests WHERE clan_id=$1 AND uid=$2",
+                "DELETE FROM clan_join_requests WHERE clan_id=$1 AND user_id=$2",
                 [callback](const Result&) {
                     Json::Value root;
                     root["status"] = "Request rejected";
