@@ -477,12 +477,12 @@ void Clans::getInvites(const HttpRequestPtr& req,
     auto client = app().getDbClient();
 
     client->execSqlAsync(
-        "SELECT c.name, c.clan_id FROM clan_invites i JOIN clans c ON i.clan_id = c.clan_id WHERE i.uid = $1",
+        "SELECT c.name, c.id FROM clan_invites i JOIN clans c ON i.clan_id = c.id WHERE i.invited_user_id = $1",
         [callback](const Result& r) {
             Json::Value arr(Json::arrayValue);
             for (const auto& row : r) {
                 Json::Value j;
-                j["clan_id"] = row["clan_id"].as<std::string>();
+                j["clan_id"] = row["id"].as<std::string>();
                 j["name"] = row["name"].as<std::string>();
                 arr.append(j);
             }
