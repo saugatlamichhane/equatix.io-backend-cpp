@@ -266,7 +266,7 @@ void Clans::getRequests(const HttpRequestPtr& req,
     auto client = app().getDbClient();
 
     client->execSqlAsync(
-        "SELECT clan_id FROM clans WHERE leader_uid = $1",
+        "SELECT id FROM clans WHERE created_by = $1",
         [client, callback](const Result& r) {
             if (r.empty()) {
                 Json::Value root;
@@ -275,15 +275,16 @@ void Clans::getRequests(const HttpRequestPtr& req,
                 resp->setStatusCode(k403Forbidden);
                 return callback(resp);
             }
-            std::string clanId = r[0]["clan_id"].as<std::string>();
 
+            std::string clanId = r[0]["id"].as<std::string>();
+                        LOG_DEBUG << "Leader check passed" << " " << clanId;
             client->execSqlAsync(
-                "SELECT * FROM clan_requests WHERE clan_id = $1",
+                "SELECT * FROM clan_join_requests WHERE clan_id = $1",
                 [callback](const Result& reqs) {
                     Json::Value arr(Json::arrayValue);
                     for (const auto& row : reqs) {
                         Json::Value j;
-                        j["uid"] = row["uid"].as<std::string>();
+                        j["uid"] = row["user_id"].as<std::string>();
                         arr.append(j);
                     }
                     auto resp = HttpResponse::newHttpJsonResponse(arr);
