@@ -83,7 +83,6 @@ void Clans::createClan(const HttpRequestPtr& req,
     );
 }
 
-
 // ----------------------------------------------------
 // GET CLAN INFO
 // ----------------------------------------------------
@@ -92,35 +91,53 @@ void Clans::getClanInfo(const HttpRequestPtr& req,
                         const std::string& id) const {
     auto client = app().getDbClient();
 
+    // --- Fetch clan info first ---
     client->execSqlAsync(
-        "SELECT * FROM clans WHERE clan_id = $1",
+        "SELECT id AS clan_id, name, description, created_by, created_at, "
+        "total_points, battles_played, battles_won, battles_lost, battles_tied "
+        "FROM clans WHERE id = $1",
         [client, callback, id](const Result& r) {
+            Json::Value root;
+
             if (r.empty()) {
-                Json::Value root;
                 root["error"] = "Clan not found";
                 auto resp = HttpResponse::newHttpJsonResponse(root);
                 resp->setStatusCode(k404NotFound);
                 return callback(resp);
             }
 
+            const auto& row = r[0];
             Json::Value clan;
-            clan["clan_id"] = r[0]["clan_id"].as<std::string>();
-            clan["name"] = r[0]["name"].as<std::string>();
-            clan["leader_uid"] = r[0]["leader_uid"].as<std::string>();
-            clan["points"] = r[0]["points"].as<int>();
+            clan["clan_id"] = row["clan_id"].as<std::string>();
+            clan["name"] = row["name"].as<std::string>();
+            clan["description"] = row["description"].isNull() ? "" : row["description"].as<std::string>();
+            clan["created_by"] = row["created_by"].as<std::string>();
+            clan["created_at"] = row["created_at"].as<std::string>();
+            clan["total_points"] = row["total_points"].as<int>();
+            clan["battles_played"] = row["battles_played"].as<int>();
+            clan["battles_won"] = row["battles_won"].as<int>();
+            clan["battles_lost"] = row["battles_lost"].as<int>();
+            clan["battles_tied"] = row["battles_tied"].as<int>();
 
+            // --- Now load clan members ---
             client->execSqlAsync(
-                "SELECT uid, role FROM clan_members WHERE clan_id = $1",
+                "SELECT user_id, role, joined_at FROM clan_members WHERE clan_id = $1 ORDER BY joined_at ASC",
                 [callback, clan](const Result& members) mutable {
                     Json::Value memberArray(Json::arrayValue);
+
                     for (const auto& row : members) {
                         Json::Value m;
-                        m["uid"] = row["uid"].as<std::string>();
+                        m["user_id"] = row["user_id"].as<std::string>();
                         m["role"] = row["role"].as<std::string>();
+                        m["joined_at"] = row["joined_at"].as<std::string>();
                         memberArray.append(m);
                     }
-                    clan["members"] = memberArray;
-                    auto resp = HttpResponse::newHttpJsonResponse(clan);
+
+                    Json::Value root;
+                    root["clan_info"] = clan;
+                    root["members"] = memberArray;
+
+                    auto resp = HttpResponse::newHttpJsonResponse(root);
                     callback(resp);
                 },
                 [callback](const DrogonDbException& e) {
@@ -145,6 +162,7 @@ void Clans::getClanInfo(const HttpRequestPtr& req,
         id
     );
 }
+
 
 // ----------------------------------------------------
 // GET MY CLAN INFO
