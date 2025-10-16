@@ -323,7 +323,7 @@ void Clans::acceptRequest(const HttpRequestPtr& req,
     auto client = app().getDbClient();
 
     client->execSqlAsync(
-        "SELECT clan_id FROM clans WHERE leader_uid = $1",
+        "SELECT id FROM clans WHERE created_by = $1",
         [client, callback, targetUid](const Result& r) {
             if (r.empty()) {
                 Json::Value root;
@@ -333,7 +333,7 @@ void Clans::acceptRequest(const HttpRequestPtr& req,
                 return callback(resp);
             }
 
-            std::string clanId = r[0]["clan_id"].as<std::string>();
+            std::string clanId = r[0]["id"].as<std::string>();
             client->execSqlAsync(
                 "INSERT INTO clan_members (clan_id, uid, role) VALUES ($1, $2, 'member'); DELETE FROM clan_requests WHERE clan_id=$1 AND uid=$2;",
                 [callback](const Result&) {
@@ -424,10 +424,10 @@ void Clans::invite(const HttpRequestPtr& req,
                    const std::string& targetUid) const {
     auto uid = req->attributes()->get<std::string>("uid");
     auto client = app().getDbClient();
-
+    LOG_DEBUG << "Invite called by " << uid << " to " << targetUid;
     client->execSqlAsync(
-        "SELECT clan_id FROM clans WHERE leader_uid = $1",
-        [client, callback, targetUid](const Result& r) {
+        "SELECT id FROM clans WHERE created_by = $1",
+        [client, callback, targetUid, uid](const Result& r) {
             if (r.empty()) {
                 Json::Value root;
                 root["error"] = "You are not a leader";
@@ -435,10 +435,10 @@ void Clans::invite(const HttpRequestPtr& req,
                 resp->setStatusCode(k403Forbidden);
                 return callback(resp);
             }
-            std::string clanId = r[0]["clan_id"].as<std::string>();
+            std::string clanId = r[0]["id"].as<std::string>();
 
             client->execSqlAsync(
-                "INSERT INTO clan_invites (clan_id, uid) VALUES ($1, $2)",
+                "INSERT INTO clan_invites (id, clan_id, invited_user_id, invited_by) VALUES (gen_random_uuid(), $1, $2, $3)",
                 [callback](const Result&) {
                     Json::Value root;
                     root["status"] = "Invite sent";
@@ -453,7 +453,7 @@ void Clans::invite(const HttpRequestPtr& req,
                     resp->setStatusCode(k500InternalServerError);
                     callback(resp);
                 },
-                clanId, targetUid
+                clanId, targetUid, uid
             );
         },
         [callback](const DrogonDbException& e) {
