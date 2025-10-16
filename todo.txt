@@ -33,6 +33,6 @@ Frontend
 Themes
 
 update and delete clan info
-if the person is in a clan then the person leaves from the clan
+if the person is in a clan then the person leaves from the clan while creating a new clan or joining an existing clan
 if the person is a leader of the clan can't leave the clan unless promoted anyone else to leader
 option to change leader
