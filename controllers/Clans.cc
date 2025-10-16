@@ -238,7 +238,7 @@ void Clans::sendRequest(const HttpRequestPtr& req,
     auto client = app().getDbClient();
 
     client->execSqlAsync(
-        "INSERT INTO clan_requests (clan_id, uid) VALUES ($1, $2)",
+        "INSERT INTO clan_join_requests (id, clan_id, user_id) VALUES (gen_random_uuid(), $1, $2)",
         [callback](const Result&) {
             Json::Value root;
             root["status"] = "Request sent";
