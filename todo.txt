@@ -39,6 +39,7 @@ option to change leader
 accepting an invite clears every request and Invites
 sent requests and sent invites
 separate leader and created by
+some clans apis yet to be implemented
 
 doesn't work in safari
 
