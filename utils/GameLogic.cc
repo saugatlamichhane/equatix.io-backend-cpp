@@ -23,17 +23,8 @@ void reset(RoomState &room, int playerTurn) {
                   Json::writeString(Json::StreamWriterBuilder(), response));
         room.currentTurn = 2;
       } else {
-          std::visit([&response, &room](auto& obj) {
-                  using T = std::decay_t<decltype(obj)>;
-                  if constexpr (std::is_same_v<T, WebSocketConnectionPtr>) {
-                  obj->send(Json::writeString(Json::StreamWriterBuilder(), response));
+                  room.player2Conn->send(Json::writeString(Json::StreamWriterBuilder(), response));
                   room.currentTurn = 1;
-
-                  } else if constexpr(std::is_same_v<T, BotPlayer>) {
-                  obj.makeMove(room);
-
-                  }
-                  }, room.player2Conn);
 
       }
  

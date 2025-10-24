@@ -6,14 +6,13 @@
 #include <string>
 #include <drogon/WebSocketController.h>
 #include <variant>
-#include "BotPlayer.h"
 
 using namespace drogon;
 struct RoomState {
   std::vector<Json::Value> state_;
   std::vector<Json::Value> current_;
   WebSocketConnectionPtr player1Conn;
-  std::variant<WebSocketConnectionPtr, BotPlayer> player2Conn;
+  WebSocketConnectionPtr player2Conn;
   int currentTurn = 1;
   std::vector<std::string> tileBag;
   std::vector<std::string> player1Rack;
