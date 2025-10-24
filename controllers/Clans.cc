@@ -1,4 +1,4 @@
-#include <drogon/HttpAppFramework.h>
+/*#include <drogon/HttpAppFramework.h>
 #include <drogon/HttpResponse.h>
 #include <drogon/HttpRequest.h>
 #include <drogon/orm/Mapper.h>
@@ -637,3 +637,4 @@ void Clans::leaveClan(const HttpRequestPtr &req,
     auto resp = HttpResponse::newHttpJsonResponse(root);
     callback(resp);
 }
+*/
