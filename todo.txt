@@ -9,9 +9,7 @@ Profile
 Elo System
 Leaderboard
 Coin System
-Clans 
 Tournaments
-Squad Game
 Game Review
 Daily Puzzles
 Spectator Mode
@@ -31,15 +29,6 @@ implement cors block for non trusted origins
 
 Frontend
 Themes
-
-update and delete clan info
-if the person is in a clan then the person leaves from the clan while creating a new clan or joining an existing clan
-if the person is a leader of the clan can't leave the clan unless promoted anyone else to leader
-option to change leader
-accepting an invite clears every request and Invites
-sent requests and sent invites
-separate leader and created by
-some clans apis yet to be implemented
 
 doesn't work in safari
 

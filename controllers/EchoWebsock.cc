@@ -219,7 +219,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       room.passes = 0;
       std::vector<std::string> &playerRack =
           (playerTurn == 1) ? room.player1Rack : room.player2Rack;
-      auto newTiles = drawTiles(room.tileBag, 8 - playerRack.size());
+      auto newTiles = drawTiles(room.tileBag, 10 - playerRack.size());
       for (auto &tile : newTiles) {
         playerRack.push_back(tile);
       }
@@ -374,7 +374,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
     room.tileBag = createTileBag();
     room.player1Conn = wsConnPtr;
     init["rack"] = Json::Value(Json::arrayValue);
-    auto rack = drawTiles(room.tileBag, 8);
+    auto rack = drawTiles(room.tileBag, 10);
     room.player1Rack = rack;
     for (auto tile : rack) {
       init["rack"].append(tile);
@@ -384,7 +384,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   } else if (room.player2Conn== nullptr) {
     room.player2Conn = wsConnPtr;
     init["rack"] = Json::Value(Json::arrayValue);
-    auto rack = drawTiles(room.tileBag, 8);
+    auto rack = drawTiles(room.tileBag, 10);
     room.player2Rack = rack;
     for (auto tile : rack) {
       init["rack"].append(tile);
