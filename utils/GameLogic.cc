@@ -21,10 +21,10 @@ void reset(RoomState &room, int playerTurn) {
           room.player1Conn->send(
 
                   Json::writeString(Json::StreamWriterBuilder(), response));
-        room.currentTurn = 2;
+        
       } else {
                   room.player2Conn->send(Json::writeString(Json::StreamWriterBuilder(), response));
-                  room.currentTurn = 1;
+                 
 
       }
  
