@@ -67,6 +67,33 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     }
     if (msgType == "reset") {
       reset(room, playerTurn);
+Json::Value stateResponse;
+      stateResponse["type"] = "state";
+      stateResponse["tiles"] = Json::Value(Json::arrayValue);
+      for (auto &tile : room.state_) {
+        stateResponse["tiles"].append(tile);
+      }
+      stateResponse["Player1 Score"] = room.score1;
+      stateResponse["Player2 Score"] = room.score2;
+      stateResponse["current tiles"] = Json::Value(Json::arrayValue);
+      for (auto &tile : room.current_) {
+        stateResponse["current tiles"].append(tile);
+      }
+      stateResponse["affected"] = Json::Value(Json::arrayValue);
+      auto affected = getAffectedEquations(room.state_, room.current_);
+      for (const auto &seq : affected) {
+        Json::Value arr(Json::arrayValue);
+        for (const auto &tile : seq) {
+          arr.append(tile);
+        }
+        stateResponse["affected"].append(arr);
+      }
+      stateResponse["turn"] = room.currentTurn;
+      stateResponse["passes"] = room.passes;
+
+      chatRooms_.publish(
+          s.chatRoomName_,
+          Json::writeString(Json::StreamWriterBuilder(), stateResponse));
       return;
     } else if (msgType == "swap") {
       room.passes++;
