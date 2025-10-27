@@ -380,8 +380,8 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 1;
-        room.player2Conn = nullptr;
-  } else if (room.player2Conn== nullptr) {
+    room.player2Conn = nullptr;
+  } else if (room.player2Conn == nullptr) {
     room.player2Conn = wsConnPtr;
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 10);
@@ -423,4 +423,23 @@ void EchoWebsock::handleConnectionClosed(
   LOG_DEBUG << "websocket closed!";
   auto &s = wsConnPtr->getContextRef<Subscriber>();
   chatRooms_.unsubscribe(s.chatRoomName_, s.id_);
+  
+  // Clear the room connection to allow new players to join
+  auto &room = rooms[s.chatRoomName_];
+  
+  // Check if this was player1 or player2
+  if (room.player1Conn == wsConnPtr) {
+    room.player1Conn = nullptr;
+  } else if (auto conn = std::get_if<WebSocketConnectionPtr>(&room.player2Conn)) {
+    if (*conn == wsConnPtr) {
+      room.player2Conn = nullptr;
+    }
+  }
+  
+  // If both players have disconnected, reset the entire room
+  if (room.player1Conn == nullptr && 
+      std::holds_alternative<WebSocketConnectionPtr>(room.player2Conn) && 
+      std::get<WebSocketConnectionPtr>(room.player2Conn) == nullptr) {
+    room = RoomState{}; // Reset to fresh state
+  }
 }
