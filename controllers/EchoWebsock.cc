@@ -430,16 +430,13 @@ void EchoWebsock::handleConnectionClosed(
   // Check if this was player1 or player2
   if (room.player1Conn == wsConnPtr) {
     room.player1Conn = nullptr;
-  } else if (auto conn = std::get_if<WebSocketConnectionPtr>(&room.player2Conn)) {
-    if (*conn == wsConnPtr) {
+  } else if (room.player2Conn == wsConnPtr) {
       room.player2Conn = nullptr;
-    }
   }
   
   // If both players have disconnected, reset the entire room
   if (room.player1Conn == nullptr && 
-      std::holds_alternative<WebSocketConnectionPtr>(room.player2Conn) && 
-      std::get<WebSocketConnectionPtr>(room.player2Conn) == nullptr) {
+      room.player2Conn == nullptr) {
     room = RoomState{}; // Reset to fresh state
   }
 }
