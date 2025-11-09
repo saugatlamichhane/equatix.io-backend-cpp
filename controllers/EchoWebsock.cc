@@ -380,41 +380,96 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           s.chatRoomName_,
           Json::writeString(Json::StreamWriterBuilder(), winResponse));
 
-      if(winner != 0) {
-        auto winnerUid = (winner == 1)?room.player1Uid : room.player2Uid;
-        auto loserUid = (winner == 1)?room.player2Uid : room.player1Uid;
-        auto clientPtr = drogon::app().getDbClient();
-        clientPtr->execSqlAsync(
-          "UPDATE users SET wins = wins + 1, gamesplayed = gamesplayed + 1 WHERE uid=$1; ",
-          [winnerUid](const drogon::orm::Result &r){
-            // Successfully updated winner stats
-            LOG_INFO << "Updated winner stats for uid: " << winnerUid;
-          },
-          [](const DrogonDbException &e){
-            LOG_ERROR << "Failed to update winner stats: " << e.base().what();
-          }, winnerUid);
+      if (winner != 0) {
+    auto winnerUid = (winner == 1) ? room.player1Uid : room.player2Uid;
+    auto loserUid = (winner == 1) ? room.player2Uid : room.player1Uid;
+    auto clientPtr = drogon::app().getDbClient();
 
-        clientPtr->execSqlAsync(
-          "UPDATE users SET losses = losses + 1, gamesplayed = gamesplayed + 1 WHERE uid=$1; ",
-          [loserUid](const drogon::orm::Result &r){
-            // Successfully updated loser stats
-            LOG_INFO << "Updated loser stats for uid: " << loserUid;
-          },
-          [](const DrogonDbException &e){
-            LOG_ERROR << "Failed to update loser stats: " << e.base().what();
-          }, loserUid);
-      } else {
-        auto clientPtr = drogon::app().getDbClient();
-        clientPtr->execSqlAsync(
-          "UPDATE users SET gamesplayed = gamesplayed + 1 WHERE uid=$1 OR uid=$2",
-          [](const drogon::orm::Result&){
-            // Successfully updated games played
-          },
-          [](const DrogonDbException &e){
-            LOG_ERROR << "Failed to update games played: " << e.base().what();
-          }, room.player1Uid, room.player2Uid
-        );
-      }
+    // Step 1: Fetch current Elo ratings
+    clientPtr->execSqlAsync(
+        "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
+        [clientPtr, winnerUid, loserUid](const drogon::orm::Result &r) {
+            if (r.size() == 2) {
+                double winnerElo = 0, loserElo = 0;
+                for (auto const &row : r) {
+                    if (row["uid"].as<std::string>() == winnerUid)
+                        winnerElo = row["elo"].as<double>();
+                    else
+                        loserElo = row["elo"].as<double>();
+                }
+
+                const double K = 32.0;
+                double expectedWinner = 1.0 / (1.0 + pow(10.0, (loserElo - winnerElo) / 400.0));
+                double expectedLoser  = 1.0 / (1.0 + pow(10.0, (winnerElo - loserElo) / 400.0));
+
+                double newWinnerElo = winnerElo + K * (1 - expectedWinner);
+                double newLoserElo  = loserElo + K * (0 - expectedLoser);
+
+                // Step 2: Update both players’ stats and Elo
+                clientPtr->execSqlAsync(
+                    "UPDATE users SET wins = wins + 1, gamesplayed = gamesplayed + 1, elo=$1 WHERE uid=$2;",
+                    [winnerUid](const drogon::orm::Result &) {
+                        LOG_INFO << "Updated winner stats for uid: " << winnerUid;
+                    },
+                    [](const DrogonDbException &e) {
+                        LOG_ERROR << "Failed to update winner stats: " << e.base().what();
+                    },
+                    newWinnerElo, winnerUid
+                );
+
+                clientPtr->execSqlAsync(
+                    "UPDATE users SET losses = losses + 1, gamesplayed = gamesplayed + 1, elo=$1 WHERE uid=$2;",
+                    [loserUid](const drogon::orm::Result &) {
+                        LOG_INFO << "Updated loser stats for uid: " << loserUid;
+                    },
+                    [](const DrogonDbException &e) {
+                        LOG_ERROR << "Failed to update loser stats: " << e.base().what();
+                    },
+                    newLoserElo, loserUid
+                );
+            }
+        },
+        [](const DrogonDbException &e) {
+            LOG_ERROR << "Failed to fetch Elo ratings: " << e.base().what();
+        },
+        winnerUid, loserUid
+    );
+
+} else {
+    // Draw case
+    auto clientPtr = drogon::app().getDbClient();
+    clientPtr->execSqlAsync(
+        "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
+        [clientPtr, room](const drogon::orm::Result &r) {
+            if (r.size() == 2) {
+                double elo1 = r[0]["elo"].as<double>();
+                double elo2 = r[1]["elo"].as<double>();
+                const double K = 32.0;
+
+                double expected1 = 1.0 / (1.0 + pow(10.0, (elo2 - elo1) / 400.0));
+                double expected2 = 1.0 / (1.0 + pow(10.0, (elo1 - elo2) / 400.0));
+
+                double newElo1 = elo1 + K * (0.5 - expected1);
+                double newElo2 = elo2 + K * (0.5 - expected2);
+
+                clientPtr->execSqlAsync(
+                    "UPDATE users SET gamesplayed = gamesplayed + 1, draws = draws + 1, elo=$1 WHERE uid=$2;",
+                    nullptr, nullptr, newElo1, room.player1Uid
+                );
+
+                clientPtr->execSqlAsync(
+                    "UPDATE users SET gamesplayed = gamesplayed + 1, draws = draws + 1, elo=$1 WHERE uid=$2;",
+                    nullptr, nullptr, newElo2, room.player2Uid
+                );
+            }
+        },
+        [](const DrogonDbException &e) {
+            LOG_ERROR << "Failed to fetch Elo for draw: " << e.base().what();
+        },
+        room.player1Uid, room.player2Uid
+    );
+}
+
     }
   }
 }
