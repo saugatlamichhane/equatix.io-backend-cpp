@@ -495,6 +495,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   init["turn"] = room.currentTurn;
 
   init["room name"] = s.chatRoomName_;
+  auto clientPtr = drogon::app().getDbClient();
   if (!room.player1Conn) {
     room.tileBag = createTileBag();
     room.player1Conn = wsConnPtr;
@@ -506,6 +507,13 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 1;
+    auto result = clientPtr->execSqlSync("SELECT name, photo, elo FROM users WHERE uid=$1", uid);
+    std::string name = result[0]["name"].as<std::string>();
+    std::string photo = result[0]["photo"].as<std::string>();
+    double elo = result[0]["elo"].as<double>();
+    init["name"] = name;
+    init["photo"] = photo;
+    init["elo"] = elo;
     room.player2Conn = nullptr;
   } else if (room.player2Conn == nullptr) {
     room.player2Conn = wsConnPtr;
@@ -517,6 +525,31 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 2;
+    auto result = clientPtr->execSqlSync("SELECT name, photo, elo FROM users WHERE uid=$1", uid);
+    std::string name = result[0]["name"].as<std::string>();
+    std::string photo = result[0]["photo"].as<std::string>();
+    double elo = result[0]["elo"].as<double>();
+    init["name"] = name;
+    init["photo"] = photo;
+    init["elo"] = elo;
+
+    Json::Value opp1, opp2;
+    auto r1 = clientPtr->execSqlSync("SELECT name, photo, elo FROM users WHERE uid=$1", room.player1Uid);
+    auto r2 = clientPtr->execSqlSync("SELECT name, photo, elo FROM users WHERE uid=$1", room.player2Uid);
+    opp1["type"] = "opponent_info";
+    opp1["name"] = r1[0]["name"].as<std::string>();
+    opp1["photo"] = r1[0]["photo"].as<std::string>();
+    opp1["elo"] = r1[0]["elo"].as<double>();
+
+    opp2["type"] = "opponent_info";
+    opp2["name"] = r2[0]["name"].as<std::string>();
+    opp2["photo"] = r2[0]["photo"].as<std::string>();
+    opp2["elo"] = r2[0]["elo"].as<double>();
+
+    room.player1Conn->send(
+        Json::writeString(Json::StreamWriterBuilder(), opp2));
+    room.player2Conn->send(
+        Json::writeString(Json::StreamWriterBuilder(), opp1));
   } else {
 
     init["error"] = "2 Players already connected";
