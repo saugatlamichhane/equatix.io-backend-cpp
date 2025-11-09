@@ -380,7 +380,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           s.chatRoomName_,
           Json::writeString(Json::StreamWriterBuilder(), winResponse));
 
-      if (winner != 0) {
+if (winner != 0) {
     auto winnerUid = (winner == 1) ? room.player1Uid : room.player2Uid;
     auto loserUid = (winner == 1) ? room.player2Uid : room.player1Uid;
     auto clientPtr = drogon::app().getDbClient();
@@ -454,12 +454,16 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
 
                 clientPtr->execSqlAsync(
                     "UPDATE users SET gamesplayed = gamesplayed + 1, draws = draws + 1, elo=$1 WHERE uid=$2;",
-                    nullptr, nullptr, newElo1, room.player1Uid
+                    [](const drogon::orm::Result &) {},   // success callback
+                    [](const DrogonDbException &) {},     // error callback
+                    newElo1, room.player1Uid
                 );
 
                 clientPtr->execSqlAsync(
                     "UPDATE users SET gamesplayed = gamesplayed + 1, draws = draws + 1, elo=$1 WHERE uid=$2;",
-                    nullptr, nullptr, newElo2, room.player2Uid
+                    [](const drogon::orm::Result &) {}, 
+                    [](const DrogonDbException &) {}, 
+                    newElo2, room.player2Uid
                 );
             }
         },
