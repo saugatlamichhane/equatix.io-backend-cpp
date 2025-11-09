@@ -156,6 +156,45 @@ void ChallengeController::rejectChallenge(const HttpRequestPtr &req,
         challengeId, receiverId);
 }
 
+void ChallengeController::cancelSentChallenge(const HttpRequestPtr &req,
+                                              std::function<void(const HttpResponsePtr &)> &&callback,
+                                              const std::string &challengeId)
+{
+    auto uidAttr = req->attributes()->get<std::string>("uid");
+    if (uidAttr.empty()) {
+        Json::Value res;
+        res["error"] = "Missing UID";
+        auto resp = HttpResponse::newHttpJsonResponse(res);
+        callback(resp);
+        return;
+    }
+
+    std::string challengerId = uidAttr;
+    auto client = app().getDbClient();
+
+    // Only cancel pending challenges sent by this user
+    client->execSqlAsync(
+        "UPDATE challenges SET status='cancelled' WHERE id=$1 AND challenger_id=$2 AND status='pending' RETURNING *",
+        [callback](const Result &r) {
+            Json::Value res;
+            if (r.empty()) {
+                res["error"] = "Challenge not found, already started, or unauthorized";
+            } else {
+                res["message"] = "Challenge cancelled successfully";
+            }
+            auto resp = HttpResponse::newHttpJsonResponse(res);
+            callback(resp);
+        },
+        [callback](const DrogonDbException &e) {
+            Json::Value res;
+            res["error"] = e.base().what();
+            auto resp = HttpResponse::newHttpJsonResponse(res);
+            callback(resp);
+        },
+        challengeId, challengerId);
+}
+
+
 void ChallengeController::listSentChallenges(const HttpRequestPtr &req,
                                              std::function<void(const HttpResponsePtr &)> &&callback) {
     auto uidAttr = req->attributes()->get<std::string>("uid");

@@ -11,6 +11,7 @@ public:
     ADD_METHOD_TO(ChallengeController::rejectChallenge, "/challenge/reject/{challengeId}", Put, "FirebaseAuthFilter");
     ADD_METHOD_TO(ChallengeController::listSentChallenges, "/challenge/sent", Get, "FirebaseAuthFilter");
     ADD_METHOD_TO(ChallengeController::listReceivedChallenges, "/challenge/received", Get, "FirebaseAuthFilter");
+    ADD_METHOD_TO(ChallengeController::cancelSentChallenge, "/challenge/cancel/{challengeId}", Delete, "FirebaseAuthFilter");
     METHOD_LIST_END
 
     void sendChallenge(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, const std::string &opponentId);
@@ -18,4 +19,6 @@ public:
     void rejectChallenge(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, const std::string &challengeId);
     void listSentChallenges(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
     void listReceivedChallenges(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback);
+    void cancelSentChallenge(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, const std::string &challengeId);
+
 };
