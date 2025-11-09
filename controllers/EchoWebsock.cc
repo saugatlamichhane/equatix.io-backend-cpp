@@ -442,6 +442,8 @@ if (winner != 0) {
         "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
         [clientPtr, room](const drogon::orm::Result &r) {
             if (r.size() == 2) {
+                std::string uid1 = r[0]["uid"].as<std::string>();
+                std::string uid2 = r[1]["uid"].as<std::string>();
                 double elo1 = r[0]["elo"].as<double>();
                 double elo2 = r[1]["elo"].as<double>();
                 const double K = 32.0;
@@ -456,14 +458,14 @@ if (winner != 0) {
                     "UPDATE users SET gamesplayed = gamesplayed + 1, draws = draws + 1, elo=$1 WHERE uid=$2;",
                     [](const drogon::orm::Result &) {},   // success callback
                     [](const DrogonDbException &) {},     // error callback
-                    newElo1, room.player1Uid
+                    newElo1, uid1
                 );
 
                 clientPtr->execSqlAsync(
                     "UPDATE users SET gamesplayed = gamesplayed + 1, draws = draws + 1, elo=$1 WHERE uid=$2;",
                     [](const drogon::orm::Result &) {}, 
                     [](const DrogonDbException &) {}, 
-                    newElo2, room.player2Uid
+                    newElo2, uid2
                 );
             }
         },
