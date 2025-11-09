@@ -385,7 +385,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         auto loserUid = (winner == 1)?room.player2Uid : room.player1Uid;
         auto clientPtr = drogon::app().getDbClient();
         clientPtr->execSqlAsync(
-          "UPDATE users SET wins = wins + 1, games_played = games_played + 1 WHERE uid=$1; ",
+          "UPDATE users SET wins = wins + 1, gamesplayed = gamesplayed + 1 WHERE uid=$1; ",
           [winnerUid](const drogon::orm::Result &r){
             // Successfully updated winner stats
             LOG_INFO << "Updated winner stats for uid: " << winnerUid;
@@ -395,7 +395,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           }, winnerUid);
 
         clientPtr->execSqlAsync(
-          "UPDATE users SET losses = losses + 1, games_played = games_played + 1 WHERE uid=$1; ",
+          "UPDATE users SET losses = losses + 1, gamesplayed = gamesplayed + 1 WHERE uid=$1; ",
           [loserUid](const drogon::orm::Result &r){
             // Successfully updated loser stats
             LOG_INFO << "Updated loser stats for uid: " << loserUid;
@@ -406,7 +406,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       } else {
         auto clientPtr = drogon::app().getDbClient();
         clientPtr->execSqlAsync(
-          "UPDATE users SET games_played = games_played + 1 WHERE uid=$1 OR uid=$2",
+          "UPDATE users SET gamesplayed = gamesplayed + 1 WHERE uid=$1 OR uid=$2",
           [](const drogon::orm::Result&){
             // Successfully updated games played
           },
