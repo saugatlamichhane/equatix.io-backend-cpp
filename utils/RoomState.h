@@ -13,6 +13,8 @@ struct RoomState {
   std::vector<Json::Value> current_;
   WebSocketConnectionPtr player1Conn;
   WebSocketConnectionPtr player2Conn;
+  std::string player1Uid;
+  std::string player2Uid;
   int currentTurn = 1;
   std::vector<std::string> tileBag;
   std::vector<std::string> player1Rack;

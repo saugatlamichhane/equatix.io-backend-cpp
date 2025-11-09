@@ -1,5 +1,9 @@
 // EchoWebsock.cc
 #include "EchoWebsock.h"
+#include "../utils/Board.h"
+#include "../utils/GameLogic.h"
+#include "../utils/RoomState.h"
+#include "../utils/ValidatorHelpers.h"
 #include <algorithm>
 #include <drogon/HttpTypes.h>
 #include <drogon/PubSubService.h>
@@ -11,19 +15,17 @@
 #include <string>
 #include <trantor/utils/Logger.h>
 #include <type_traits>
-#include <vector>
-#include "../utils/Board.h"
-#include "../utils/GameLogic.h"
-#include "../utils/RoomState.h"
-#include "../utils/ValidatorHelpers.h"
 #include <variant>
+#include <vector>
+#include <drogon/orm/Exception.h>
+#include <drogon/orm/Mapper.h>
 
+using namespace drogon::orm;
 
 struct Subscriber {
   std::string chatRoomName_;
   drogon::SubscriberID id_;
 };
-
 
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                                    std::string &&message,
@@ -67,7 +69,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     }
     if (msgType == "reset") {
       reset(room, playerTurn);
-Json::Value stateResponse;
+      Json::Value stateResponse;
       stateResponse["type"] = "state";
       stateResponse["tiles"] = Json::Value(Json::arrayValue);
       for (auto &tile : room.state_) {
@@ -140,8 +142,7 @@ Json::Value stateResponse;
       if (playerTurn == 2) {
         room.currentTurn = 1;
       } else {
-         room.currentTurn = 2;
-
+        room.currentTurn = 2;
       }
 
     } else if (msgType == "pass") {
@@ -151,8 +152,7 @@ Json::Value stateResponse;
       if (playerTurn == 2) {
         room.currentTurn = 1;
       } else {
-          room.currentTurn = 2;
-
+        room.currentTurn = 2;
       }
     } else if (msgType == "evaluate") {
       if (room.state_.empty()) {
@@ -259,12 +259,13 @@ Json::Value stateResponse;
       if (playerTurn == 2) {
         room.currentTurn = 1;
 
-                  room.player2Conn->send(Json::writeString(Json::StreamWriterBuilder(), rackJson));
+        room.player2Conn->send(
+            Json::writeString(Json::StreamWriterBuilder(), rackJson));
 
       } else {
-                  room.player1Conn->send(Json::writeString(Json::StreamWriterBuilder(), rackJson));
-                  room.currentTurn = 2;
-
+        room.player1Conn->send(
+            Json::writeString(Json::StreamWriterBuilder(), rackJson));
+        room.currentTurn = 2;
       }
       Json::StreamWriterBuilder wbuilder;
       std::string jsonStr = Json::writeString(wbuilder, response);
@@ -332,9 +333,8 @@ Json::Value stateResponse;
       for (auto &item : rack) {
         msg["rack"].append(item);
       }
-room.player2Conn->send(Json::writeString(Json::StreamWriterBuilder(), msg));
-
-
+      room.player2Conn->send(
+          Json::writeString(Json::StreamWriterBuilder(), msg));
     }
 
     response["type"] = "state";
@@ -366,19 +366,55 @@ room.player2Conn->send(Json::writeString(Json::StreamWriterBuilder(), msg));
     if (win) {
       Json::Value winResponse;
       winResponse["type"] = "game_over";
+      int winner = 0;
       if (room.score1 > room.score2) {
-        winResponse["winner"] = 1;
+        winner = 1;
       } else if (room.score2 > room.score1) {
-        winResponse["winner"] = 2;
-      } else {
-        winResponse["winner"] = 0;
+        winner = 2;
       }
+      winResponse["winner"] = winner;
       winResponse["score1"] = room.score1;
       winResponse["score2"] = room.score2;
 
       chatRooms_.publish(
           s.chatRoomName_,
           Json::writeString(Json::StreamWriterBuilder(), winResponse));
+
+      if(winner != 0) {
+        auto winnerUid = (winner == 1)?room.player1Uid : room.player2Uid;
+        auto loserUid = (winner == 1)?room.player2Uid : room.player1Uid;
+        auto clientPtr = drogon::app().getDbClient();
+        clientPtr->execSqlAsync(
+          "UPDATE users SET wins = wins + 1, games_played = games_played + 1 WHERE uid=$1; ",
+          [winnerUid](const drogon::orm::Result &r){
+            // Successfully updated winner stats
+            LOG_INFO << "Updated winner stats for uid: " << winnerUid;
+          },
+          [](const DrogonDbException &e){
+            LOG_ERROR << "Failed to update winner stats: " << e.base().what();
+          }, winnerUid);
+
+        clientPtr->execSqlAsync(
+          "UPDATE users SET losses = losses + 1, games_played = games_played + 1 WHERE uid=$1; ",
+          [loserUid](const drogon::orm::Result &r){
+            // Successfully updated loser stats
+            LOG_INFO << "Updated loser stats for uid: " << loserUid;
+          },
+          [](const DrogonDbException &e){
+            LOG_ERROR << "Failed to update loser stats: " << e.base().what();
+          }, loserUid);
+      } else {
+        auto clientPtr = drogon::app().getDbClient();
+        clientPtr->execSqlAsync(
+          "UPDATE users SET games_played = games_played + 1 WHERE uid=$1 OR uid=$2",
+          [](const drogon::orm::Result&){
+            // Successfully updated games played
+          },
+          [](const DrogonDbException &e){
+            LOG_ERROR << "Failed to update games played: " << e.base().what();
+          }, room.player1Uid, room.player2Uid
+        );
+      }
     }
   }
 }
@@ -388,6 +424,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   LOG_DEBUG << "new websocket connection!";
   Subscriber s;
   s.chatRoomName_ = req->getParameter("room_name");
+  auto uid = req->getParameter("uid");
   auto params = req->getParameters();
 
   auto &room = rooms[s.chatRoomName_];
@@ -400,6 +437,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   if (!room.player1Conn) {
     room.tileBag = createTileBag();
     room.player1Conn = wsConnPtr;
+    room.player1Uid = uid;
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 10);
     room.player1Rack = rack;
@@ -410,6 +448,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
     room.player2Conn = nullptr;
   } else if (room.player2Conn == nullptr) {
     room.player2Conn = wsConnPtr;
+    room.player2Uid = uid;
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 10);
     room.player2Rack = rack;
@@ -417,8 +456,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 2;
-  }
-  else {
+  } else {
 
     init["error"] = "2 Players already connected";
     wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
@@ -431,9 +469,8 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
     wsConnPtr->setContext(std::make_shared<Subscriber>(std::move(s)));
     wsConnPtr->forceClose();
     return;
-  } 
+  }
 
-  
   s.id_ = chatRooms_.subscribe(
       s.chatRoomName_,
       [wsConnPtr](const std::string &topic, const std::string &message) {
@@ -450,20 +487,19 @@ void EchoWebsock::handleConnectionClosed(
   LOG_DEBUG << "websocket closed!";
   auto &s = wsConnPtr->getContextRef<Subscriber>();
   chatRooms_.unsubscribe(s.chatRoomName_, s.id_);
-  
+
   // Clear the room connection to allow new players to join
   auto &room = rooms[s.chatRoomName_];
-  
+
   // Check if this was player1 or player2
   if (room.player1Conn == wsConnPtr) {
     room.player1Conn = nullptr;
   } else if (room.player2Conn == wsConnPtr) {
-      room.player2Conn = nullptr;
+    room.player2Conn = nullptr;
   }
-  
+
   // If both players have disconnected, reset the entire room
-  if (room.player1Conn == nullptr && 
-      room.player2Conn == nullptr) {
+  if (room.player1Conn == nullptr && room.player2Conn == nullptr) {
     room = RoomState{}; // Reset to fresh state
   }
 }
