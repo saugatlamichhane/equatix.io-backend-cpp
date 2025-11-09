@@ -36,7 +36,7 @@ void QuickStatsController::getQuickStats(
                 return;
             }
 
-            result["elo"] = r[0]["elo"].as<int>();
+            result["elo"] = r[0]["elo"].as<double>();
             result["gamesWon"] = r[0]["wins"].as<int>();
 
             // 2. Count friends
