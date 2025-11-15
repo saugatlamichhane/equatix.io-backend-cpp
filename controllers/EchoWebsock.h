@@ -3,11 +3,9 @@
 #include <drogon/HttpAppFramework.h>
 #include <drogon/PubSubService.h>
 #include <drogon/WebSocketController.h>
-#include <utils/RoomState.h>
 #include <unordered_map>
+#include <utils/RoomState.h>
 using namespace drogon;
-
-
 
 class EchoWebsock : public drogon::WebSocketController<EchoWebsock> {
 public:

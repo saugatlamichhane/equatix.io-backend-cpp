@@ -1,8 +1,8 @@
 #pragma once
 
-#include <vector>
 #include <json/json.h>
 #include <string>
+#include <vector>
 
 bool touchesCenter(const std::vector<Json::Value> &current);
 bool touchesExisting(const std::vector<Json::Value> &state,

@@ -6,11 +6,14 @@
 #include <drogon/drogon.h>
 
 class Leaderboard : public drogon::HttpController<Leaderboard> {
-    public:
-        METHOD_LIST_BEGIN
-            METHOD_ADD(Leaderboard::getLeaderboard, "", drogon::Get, "FirebaseAuthFilter");
-        METHOD_LIST_END
+public:
+  METHOD_LIST_BEGIN
+  METHOD_ADD(Leaderboard::getLeaderboard, "", drogon::Get,
+             "FirebaseAuthFilter");
+  METHOD_LIST_END
 
-            void getLeaderboard(const drogon::HttpRequestPtr& req, std::function<void(const drogon::HttpResponsePtr&)>&& callback) const ;
-            Leaderboard();
+  void getLeaderboard(
+      const drogon::HttpRequestPtr &req,
+      std::function<void(const drogon::HttpResponsePtr &)> &&callback) const;
+  Leaderboard();
 };

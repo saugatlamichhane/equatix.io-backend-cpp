@@ -8,6 +8,8 @@
 #include <drogon/HttpTypes.h>
 #include <drogon/PubSubService.h>
 #include <drogon/WebSocketConnection.h>
+#include <drogon/orm/Exception.h>
+#include <drogon/orm/Mapper.h>
 #include <memory>
 #include <random>
 #include <stack>
@@ -17,8 +19,6 @@
 #include <type_traits>
 #include <variant>
 #include <vector>
-#include <drogon/orm/Exception.h>
-#include <drogon/orm/Mapper.h>
 
 using namespace drogon::orm;
 
@@ -380,102 +380,104 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           s.chatRoomName_,
           Json::writeString(Json::StreamWriterBuilder(), winResponse));
 
-if (winner != 0) {
-    auto winnerUid = (winner == 1) ? room.player1Uid : room.player2Uid;
-    auto loserUid = (winner == 1) ? room.player2Uid : room.player1Uid;
-    auto clientPtr = drogon::app().getDbClient();
+      if (winner != 0) {
+        auto winnerUid = (winner == 1) ? room.player1Uid : room.player2Uid;
+        auto loserUid = (winner == 1) ? room.player2Uid : room.player1Uid;
+        auto clientPtr = drogon::app().getDbClient();
 
-    // Step 1: Fetch current Elo ratings
-    clientPtr->execSqlAsync(
-        "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
-        [clientPtr, winnerUid, loserUid](const drogon::orm::Result &r) {
-            if (r.size() == 2) {
+        // Step 1: Fetch current Elo ratings
+        clientPtr->execSqlAsync(
+            "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
+            [clientPtr, winnerUid, loserUid](const drogon::orm::Result &r) {
+              if (r.size() == 2) {
                 double winnerElo = 0, loserElo = 0;
                 for (auto const &row : r) {
-                    if (row["uid"].as<std::string>() == winnerUid)
-                        winnerElo = row["elo"].as<double>();
-                    else
-                        loserElo = row["elo"].as<double>();
+                  if (row["uid"].as<std::string>() == winnerUid)
+                    winnerElo = row["elo"].as<double>();
+                  else
+                    loserElo = row["elo"].as<double>();
                 }
 
                 const double K = 32.0;
-                double expectedWinner = 1.0 / (1.0 + pow(10.0, (loserElo - winnerElo) / 400.0));
-                double expectedLoser  = 1.0 / (1.0 + pow(10.0, (winnerElo - loserElo) / 400.0));
+                double expectedWinner =
+                    1.0 / (1.0 + pow(10.0, (loserElo - winnerElo) / 400.0));
+                double expectedLoser =
+                    1.0 / (1.0 + pow(10.0, (winnerElo - loserElo) / 400.0));
 
                 double newWinnerElo = winnerElo + K * (1 - expectedWinner);
-                double newLoserElo  = loserElo + K * (0 - expectedLoser);
+                double newLoserElo = loserElo + K * (0 - expectedLoser);
 
                 // Step 2: Update both players’ stats and Elo
                 clientPtr->execSqlAsync(
-                    "UPDATE users SET wins = wins + 1, gamesplayed = gamesplayed + 1, elo=$1 WHERE uid=$2;",
+                    "UPDATE users SET wins = wins + 1, gamesplayed = "
+                    "gamesplayed + 1, elo=$1 WHERE uid=$2;",
                     [winnerUid](const drogon::orm::Result &) {
-                        LOG_INFO << "Updated winner stats for uid: " << winnerUid;
+                      LOG_INFO << "Updated winner stats for uid: " << winnerUid;
                     },
                     [](const DrogonDbException &e) {
-                        LOG_ERROR << "Failed to update winner stats: " << e.base().what();
+                      LOG_ERROR << "Failed to update winner stats: "
+                                << e.base().what();
                     },
-                    newWinnerElo, winnerUid
-                );
+                    newWinnerElo, winnerUid);
 
                 clientPtr->execSqlAsync(
-                    "UPDATE users SET losses = losses + 1, gamesplayed = gamesplayed + 1, elo=$1 WHERE uid=$2;",
+                    "UPDATE users SET losses = losses + 1, gamesplayed = "
+                    "gamesplayed + 1, elo=$1 WHERE uid=$2;",
                     [loserUid](const drogon::orm::Result &) {
-                        LOG_INFO << "Updated loser stats for uid: " << loserUid;
+                      LOG_INFO << "Updated loser stats for uid: " << loserUid;
                     },
                     [](const DrogonDbException &e) {
-                        LOG_ERROR << "Failed to update loser stats: " << e.base().what();
+                      LOG_ERROR << "Failed to update loser stats: "
+                                << e.base().what();
                     },
-                    newLoserElo, loserUid
-                );
-            }
-        },
-        [](const DrogonDbException &e) {
-            LOG_ERROR << "Failed to fetch Elo ratings: " << e.base().what();
-        },
-        winnerUid, loserUid
-    );
+                    newLoserElo, loserUid);
+              }
+            },
+            [](const DrogonDbException &e) {
+              LOG_ERROR << "Failed to fetch Elo ratings: " << e.base().what();
+            },
+            winnerUid, loserUid);
 
-} else {
-    // Draw case
-    auto clientPtr = drogon::app().getDbClient();
-    clientPtr->execSqlAsync(
-        "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
-        [clientPtr, room](const drogon::orm::Result &r) {
-            if (r.size() == 2) {
+      } else {
+        // Draw case
+        auto clientPtr = drogon::app().getDbClient();
+        clientPtr->execSqlAsync(
+            "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
+            [clientPtr, room](const drogon::orm::Result &r) {
+              if (r.size() == 2) {
                 std::string uid1 = r[0]["uid"].as<std::string>();
                 std::string uid2 = r[1]["uid"].as<std::string>();
                 double elo1 = r[0]["elo"].as<double>();
                 double elo2 = r[1]["elo"].as<double>();
                 const double K = 32.0;
 
-                double expected1 = 1.0 / (1.0 + pow(10.0, (elo2 - elo1) / 400.0));
-                double expected2 = 1.0 / (1.0 + pow(10.0, (elo1 - elo2) / 400.0));
+                double expected1 =
+                    1.0 / (1.0 + pow(10.0, (elo2 - elo1) / 400.0));
+                double expected2 =
+                    1.0 / (1.0 + pow(10.0, (elo1 - elo2) / 400.0));
 
                 double newElo1 = elo1 + K * (0.5 - expected1);
                 double newElo2 = elo2 + K * (0.5 - expected2);
 
                 clientPtr->execSqlAsync(
-                    "UPDATE users SET gamesplayed = gamesplayed + 1, draws = draws + 1, elo=$1 WHERE uid=$2;",
-                    [](const drogon::orm::Result &) {},   // success callback
-                    [](const DrogonDbException &) {},     // error callback
-                    newElo1, uid1
-                );
+                    "UPDATE users SET gamesplayed = gamesplayed + 1, draws = "
+                    "draws + 1, elo=$1 WHERE uid=$2;",
+                    [](const drogon::orm::Result &) {}, // success callback
+                    [](const DrogonDbException &) {},   // error callback
+                    newElo1, uid1);
 
                 clientPtr->execSqlAsync(
-                    "UPDATE users SET gamesplayed = gamesplayed + 1, draws = draws + 1, elo=$1 WHERE uid=$2;",
-                    [](const drogon::orm::Result &) {}, 
-                    [](const DrogonDbException &) {}, 
-                    newElo2, uid2
-                );
-            }
-        },
-        [](const DrogonDbException &e) {
-            LOG_ERROR << "Failed to fetch Elo for draw: " << e.base().what();
-        },
-        room.player1Uid, room.player2Uid
-    );
-}
-
+                    "UPDATE users SET gamesplayed = gamesplayed + 1, draws = "
+                    "draws + 1, elo=$1 WHERE uid=$2;",
+                    [](const drogon::orm::Result &) {},
+                    [](const DrogonDbException &) {}, newElo2, uid2);
+              }
+            },
+            [](const DrogonDbException &e) {
+              LOG_ERROR << "Failed to fetch Elo for draw: " << e.base().what();
+            },
+            room.player1Uid, room.player2Uid);
+      }
     }
   }
 }
@@ -507,7 +509,8 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 1;
-    auto result = clientPtr->execSqlSync("SELECT name, photo, elo FROM users WHERE uid=$1", uid);
+    auto result = clientPtr->execSqlSync(
+        "SELECT name, photo, elo FROM users WHERE uid=$1", uid);
     std::string name = result[0]["name"].as<std::string>();
     std::string photo = result[0]["photo"].as<std::string>();
     double elo = result[0]["elo"].as<double>();
@@ -525,7 +528,8 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
       init["rack"].append(tile);
     }
     init["sent"] = 2;
-    auto result = clientPtr->execSqlSync("SELECT name, photo, elo FROM users WHERE uid=$1", uid);
+    auto result = clientPtr->execSqlSync(
+        "SELECT name, photo, elo FROM users WHERE uid=$1", uid);
     std::string name = result[0]["name"].as<std::string>();
     std::string photo = result[0]["photo"].as<std::string>();
     double elo = result[0]["elo"].as<double>();
@@ -534,8 +538,10 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
     init["elo"] = elo;
 
     Json::Value opp1, opp2;
-    auto r1 = clientPtr->execSqlSync("SELECT name, photo, elo FROM users WHERE uid=$1", room.player1Uid);
-    auto r2 = clientPtr->execSqlSync("SELECT name, photo, elo FROM users WHERE uid=$1", room.player2Uid);
+    auto r1 = clientPtr->execSqlSync(
+        "SELECT name, photo, elo FROM users WHERE uid=$1", room.player1Uid);
+    auto r2 = clientPtr->execSqlSync(
+        "SELECT name, photo, elo FROM users WHERE uid=$1", room.player2Uid);
     opp1["type"] = "opponent_info";
     opp1["name"] = r1[0]["name"].as<std::string>();
     opp1["photo"] = r1[0]["photo"].as<std::string>();

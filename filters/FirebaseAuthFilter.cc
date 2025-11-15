@@ -7,12 +7,11 @@
 #include "FirebaseAuthFilter.h"
 #include <drogon/HttpClient.h>
 #include <drogon/drogon.h>
-#include <drogon/orm/Exception.h>
-#include <jwt-cpp/jwt.h>
 #include <drogon/orm/DbClient.h>
+#include <drogon/orm/Exception.h>
 #include <drogon/orm/Result.h>
+#include <jwt-cpp/jwt.h>
 #include <trantor/utils/Logger.h>
-
 
 using namespace drogon;
 
@@ -58,7 +57,8 @@ std::string certToPubKey(const std::string &certPem) {
 void fetchFirebaseKeys() {
   auto client = drogon::HttpClient::newHttpClient("https://www.googleapis.com");
   auto req = drogon::HttpRequest::newHttpRequest();
-  req->setPath("/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com");
+  req->setPath(
+      "/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com");
   client->sendRequest(
       req, [](drogon::ReqResult result, const drogon::HttpResponsePtr &resp) {
         if (result != drogon::ReqResult::Ok || !resp) {
@@ -136,40 +136,40 @@ void FirebaseAuthFilter::doFilter(const HttpRequestPtr &req,
                                   FilterCallback &&fcb,
                                   FilterChainCallback &&fccb) {
   try {
-      fetchFirebaseKeys();
-      auto headers = req->getHeaders();
-      if(headers.find("authorization") == headers.end()) {
-          throw std::runtime_error("Authorization header missing");
-      }
-      std::string authHeader = headers.at("authorization");
-      if(authHeader.substr(0, 7) != "Bearer ") {
-          throw std::runtime_error("Invalid authorization header format");
-      }
-      std::string token = authHeader.substr(7);
-      if(!verifyFirebaseToken(token)) {
-          throw std::runtime_error("Invalid token");
-      }
-      auto decoded = jwt::decode(token);
-      std::string uid = decoded.get_payload_claim("sub").as_string();
-      req->attributes()->insert("uid", uid);
-      auto client = drogon::app().getDbClient();
-      std::string name = decoded.get_payload_claim("name").as_string();
-      std::string email = decoded.get_payload_claim("email").as_string();
-      std::string photo = decoded.get_payload_claim("picture").as_string();
-      client->execSqlAsync("INSERT INTO users(uid, name, email, photo) VALUES($1, $2, $3, $4) ON CONFLICT (uid) DO NOTHING", [=] (const drogon::orm::Result& r) {
-              LOG_INFO << "User upserted.";
-      }, 
-      [](const drogon::orm::DrogonDbException& e) {
-      LOG_DEBUG << "DB Error " << e.base().what();
-      },
-      uid, name, email, photo);
-  fccb();
-      
+    fetchFirebaseKeys();
+    auto headers = req->getHeaders();
+    if (headers.find("authorization") == headers.end()) {
+      throw std::runtime_error("Authorization header missing");
+    }
+    std::string authHeader = headers.at("authorization");
+    if (authHeader.substr(0, 7) != "Bearer ") {
+      throw std::runtime_error("Invalid authorization header format");
+    }
+    std::string token = authHeader.substr(7);
+    if (!verifyFirebaseToken(token)) {
+      throw std::runtime_error("Invalid token");
+    }
+    auto decoded = jwt::decode(token);
+    std::string uid = decoded.get_payload_claim("sub").as_string();
+    req->attributes()->insert("uid", uid);
+    auto client = drogon::app().getDbClient();
+    std::string name = decoded.get_payload_claim("name").as_string();
+    std::string email = decoded.get_payload_claim("email").as_string();
+    std::string photo = decoded.get_payload_claim("picture").as_string();
+    client->execSqlAsync(
+        "INSERT INTO users(uid, name, email, photo) VALUES($1, $2, $3, $4) ON "
+        "CONFLICT (uid) DO NOTHING",
+        [=](const drogon::orm::Result &r) { LOG_INFO << "User upserted."; },
+        [](const drogon::orm::DrogonDbException &e) {
+          LOG_DEBUG << "DB Error " << e.base().what();
+        },
+        uid, name, email, photo);
+    fccb();
+
   } catch (const std::exception &e) {
     LOG_ERROR << "Authentication Failed: " << e.what();
     auto res = drogon::HttpResponse::newHttpResponse();
     res->setStatusCode(k500InternalServerError);
     fcb(res);
   }
-
 }

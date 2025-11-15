@@ -18,9 +18,9 @@ Clans::Clans() {
 // CREATE CLAN
 // ----------------------------------------------------
 void Clans::createClan(const HttpRequestPtr& req,
-                       std::function<void(const HttpResponsePtr&)>&& callback) const {
-    auto uid = req->attributes()->get<std::string>("uid");
-    auto json = req->getJsonObject();
+                       std::function<void(const HttpResponsePtr&)>&& callback)
+const { auto uid = req->attributes()->get<std::string>("uid"); auto json =
+req->getJsonObject();
 
     // --- Validate input ---
     if (!json || !json->isMember("name")) {
@@ -36,12 +36,10 @@ void Clans::createClan(const HttpRequestPtr& req,
 
     // --- Generate a UUID inside SQL and return it ---
     client->execSqlAsync(
-        "INSERT INTO clans (id, name, created_by) VALUES (gen_random_uuid(), $1, $2) RETURNING id",
-        [callback, uid, client](const Result& r) {
-            if (r.size() == 0) {
-                Json::Value root;
-                root["error"] = "Failed to create clan";
-                auto resp = HttpResponse::newHttpJsonResponse(root);
+        "INSERT INTO clans (id, name, created_by) VALUES (gen_random_uuid(), $1,
+$2) RETURNING id", [callback, uid, client](const Result& r) { if (r.size() == 0)
+{ Json::Value root; root["error"] = "Failed to create clan"; auto resp =
+HttpResponse::newHttpJsonResponse(root);
                 resp->setStatusCode(k500InternalServerError);
                 return callback(resp);
             }
@@ -61,10 +59,9 @@ void Clans::createClan(const HttpRequestPtr& req,
                     callback(resp);
                 },
                 [callback](const DrogonDbException& e) {
-                    LOG_ERROR << "Error adding leader to clan_members: " << e.base().what();
-                    Json::Value root;
-                    root["error"] = e.base().what();
-                    auto resp = HttpResponse::newHttpJsonResponse(root);
+                    LOG_ERROR << "Error adding leader to clan_members: " <<
+e.base().what(); Json::Value root; root["error"] = e.base().what(); auto resp =
+HttpResponse::newHttpJsonResponse(root);
                     resp->setStatusCode(k500InternalServerError);
                     callback(resp);
                 },
@@ -110,19 +107,20 @@ void Clans::getClanInfo(const HttpRequestPtr& req,
             Json::Value clan;
             clan["clan_id"] = row["clan_id"].as<std::string>();
             clan["name"] = row["name"].as<std::string>();
-            clan["description"] = row["description"].isNull() ? "" : row["description"].as<std::string>();
-            clan["created_by"] = row["created_by"].as<std::string>();
-            clan["created_at"] = row["created_at"].as<std::string>();
-            clan["total_points"] = row["total_points"].as<int>();
-            clan["battles_played"] = row["battles_played"].as<int>();
-            clan["battles_won"] = row["battles_won"].as<int>();
-            clan["battles_lost"] = row["battles_lost"].as<int>();
-            clan["battles_tied"] = row["battles_tied"].as<int>();
+            clan["description"] = row["description"].isNull() ? "" :
+row["description"].as<std::string>(); clan["created_by"] =
+row["created_by"].as<std::string>(); clan["created_at"] =
+row["created_at"].as<std::string>(); clan["total_points"] =
+row["total_points"].as<int>(); clan["battles_played"] =
+row["battles_played"].as<int>(); clan["battles_won"] =
+row["battles_won"].as<int>(); clan["battles_lost"] =
+row["battles_lost"].as<int>(); clan["battles_tied"] =
+row["battles_tied"].as<int>();
 
             // --- Now load clan members ---
             client->execSqlAsync(
-                "SELECT user_id, role, joined_at FROM clan_members WHERE clan_id = $1 ORDER BY joined_at ASC",
-                [callback, clan](const Result& members) mutable {
+                "SELECT user_id, role, joined_at FROM clan_members WHERE clan_id
+= $1 ORDER BY joined_at ASC", [callback, clan](const Result& members) mutable {
                     Json::Value memberArray(Json::arrayValue);
 
                     for (const auto& row : members) {
@@ -141,10 +139,9 @@ void Clans::getClanInfo(const HttpRequestPtr& req,
                     callback(resp);
                 },
                 [callback](const DrogonDbException& e) {
-                    LOG_ERROR << "Error loading clan members: " << e.base().what();
-                    Json::Value root;
-                    root["error"] = e.base().what();
-                    auto resp = HttpResponse::newHttpJsonResponse(root);
+                    LOG_ERROR << "Error loading clan members: " <<
+e.base().what(); Json::Value root; root["error"] = e.base().what(); auto resp =
+HttpResponse::newHttpJsonResponse(root);
                     resp->setStatusCode(k500InternalServerError);
                     callback(resp);
                 },
@@ -167,20 +164,17 @@ void Clans::getClanInfo(const HttpRequestPtr& req,
 // ----------------------------------------------------
 // GET MY CLAN INFO
 void Clans::getMyClanInfo(const HttpRequestPtr& req,
-                          std::function<void(const HttpResponsePtr&)>&& callback) const {
-    auto uid = req->attributes()->get<std::string>("uid");
-    auto client = app().getDbClient();
+                          std::function<void(const HttpResponsePtr&)>&&
+callback) const { auto uid = req->attributes()->get<std::string>("uid"); auto
+client = app().getDbClient();
 
     // --- Fetch the clan the user belongs to ---
     client->execSqlAsync(
-        "SELECT c.id AS clan_id, c.name, c.description, c.created_by, c.created_at, "
-        "c.total_points, c.battles_played, c.battles_won, c.battles_lost, c.battles_tied, "
-        "m.role, m.joined_at "
-        "FROM clans c "
-        "JOIN clan_members m ON c.id = m.clan_id "
-        "WHERE m.user_id = $1",
-        [callback](const Result& r) {
-            Json::Value root;
+        "SELECT c.id AS clan_id, c.name, c.description, c.created_by,
+c.created_at, " "c.total_points, c.battles_played, c.battles_won,
+c.battles_lost, c.battles_tied, " "m.role, m.joined_at " "FROM clans c " "JOIN
+clan_members m ON c.id = m.clan_id " "WHERE m.user_id = $1", [callback](const
+Result& r) { Json::Value root;
 
             // --- No clan found ---
             if (r.empty()) {
@@ -194,14 +188,15 @@ void Clans::getMyClanInfo(const HttpRequestPtr& req,
             Json::Value clan;
             clan["clan_id"] = row["clan_id"].as<std::string>();
             clan["name"] = row["name"].as<std::string>();
-            clan["description"] = row["description"].isNull() ? "" : row["description"].as<std::string>();
-            clan["created_by"] = row["created_by"].as<std::string>();
-            clan["created_at"] = row["created_at"].as<std::string>();
-            clan["total_points"] = row["total_points"].as<int>();
-            clan["battles_played"] = row["battles_played"].as<int>();
-            clan["battles_won"] = row["battles_won"].as<int>();
-            clan["battles_lost"] = row["battles_lost"].as<int>();
-            clan["battles_tied"] = row["battles_tied"].as<int>();
+            clan["description"] = row["description"].isNull() ? "" :
+row["description"].as<std::string>(); clan["created_by"] =
+row["created_by"].as<std::string>(); clan["created_at"] =
+row["created_at"].as<std::string>(); clan["total_points"] =
+row["total_points"].as<int>(); clan["battles_played"] =
+row["battles_played"].as<int>(); clan["battles_won"] =
+row["battles_won"].as<int>(); clan["battles_lost"] =
+row["battles_lost"].as<int>(); clan["battles_tied"] =
+row["battles_tied"].as<int>();
 
             // --- Add user’s membership info ---
             Json::Value member;
@@ -238,9 +233,8 @@ void Clans::sendRequest(const HttpRequestPtr& req,
     auto client = app().getDbClient();
 
     client->execSqlAsync(
-        "INSERT INTO clan_join_requests (id, clan_id, user_id) VALUES (gen_random_uuid(), $1, $2)",
-        [callback](const Result&) {
-            Json::Value root;
+        "INSERT INTO clan_join_requests (id, clan_id, user_id) VALUES
+(gen_random_uuid(), $1, $2)", [callback](const Result&) { Json::Value root;
             root["status"] = "Request sent";
             auto resp = HttpResponse::newHttpJsonResponse(root);
             callback(resp);
@@ -261,9 +255,9 @@ void Clans::sendRequest(const HttpRequestPtr& req,
 // GET REQUESTS (LEADER)
 // ----------------------------------------------------
 void Clans::getRequests(const HttpRequestPtr& req,
-                        std::function<void(const HttpResponsePtr&)>&& callback) const {
-    auto uid = req->attributes()->get<std::string>("uid");
-    auto client = app().getDbClient();
+                        std::function<void(const HttpResponsePtr&)>&& callback)
+const { auto uid = req->attributes()->get<std::string>("uid"); auto client =
+app().getDbClient();
 
     client->execSqlAsync(
         "SELECT id FROM clans WHERE created_by = $1",
@@ -317,10 +311,9 @@ void Clans::getRequests(const HttpRequestPtr& req,
 // ACCEPT REQUEST
 // ----------------------------------------------------
 void Clans::acceptRequest(const HttpRequestPtr& req,
-                          std::function<void(const HttpResponsePtr&)>&& callback,
-                          const std::string& targetUid) const {
-    auto uid = req->attributes()->get<std::string>("uid");
-    auto client = app().getDbClient();
+                          std::function<void(const HttpResponsePtr&)>&&
+callback, const std::string& targetUid) const { auto uid =
+req->attributes()->get<std::string>("uid"); auto client = app().getDbClient();
 
     // Step 1: Check if the requester is the clan leader
     client->execSqlAsync(
@@ -338,22 +331,20 @@ void Clans::acceptRequest(const HttpRequestPtr& req,
 
             // Step 2: Insert member
             client->execSqlAsync(
-                "INSERT INTO clan_members (id, clan_id, user_id, role) VALUES (gen_random_uuid(), $1, $2, 'member');",
-                [client, callback, clanId, targetUid](const Result&) {
+                "INSERT INTO clan_members (id, clan_id, user_id, role) VALUES
+(gen_random_uuid(), $1, $2, 'member');", [client, callback, clanId,
+targetUid](const Result&) {
                     // Step 3: Delete the request
                     client->execSqlAsync(
-                        "DELETE FROM clan_join_requests WHERE clan_id=$1 AND user_id=$2;",
-                        [callback](const Result&) {
-                            Json::Value root;
-                            root["status"] = "Request accepted";
-                            auto resp = HttpResponse::newHttpJsonResponse(root);
+                        "DELETE FROM clan_join_requests WHERE clan_id=$1 AND
+user_id=$2;", [callback](const Result&) { Json::Value root; root["status"] =
+"Request accepted"; auto resp = HttpResponse::newHttpJsonResponse(root);
                             callback(resp);
                         },
                         [callback](const DrogonDbException& e) {
-                            LOG_ERROR << "Error deleting request: " << e.base().what();
-                            Json::Value root;
-                            root["error"] = e.base().what();
-                            auto resp = HttpResponse::newHttpJsonResponse(root);
+                            LOG_ERROR << "Error deleting request: " <<
+e.base().what(); Json::Value root; root["error"] = e.base().what(); auto resp =
+HttpResponse::newHttpJsonResponse(root);
                             resp->setStatusCode(k500InternalServerError);
                             callback(resp);
                         },
@@ -388,10 +379,9 @@ void Clans::acceptRequest(const HttpRequestPtr& req,
 // REJECT REQUEST
 // ----------------------------------------------------
 void Clans::rejectRequest(const HttpRequestPtr& req,
-                          std::function<void(const HttpResponsePtr&)>&& callback,
-                          const std::string& targetUid) const {
-    auto uid = req->attributes()->get<std::string>("uid");
-    auto client = app().getDbClient();
+                          std::function<void(const HttpResponsePtr&)>&&
+callback, const std::string& targetUid) const { auto uid =
+req->attributes()->get<std::string>("uid"); auto client = app().getDbClient();
 
     client->execSqlAsync(
         "SELECT id FROM clans WHERE created_by = $1",
@@ -405,11 +395,9 @@ void Clans::rejectRequest(const HttpRequestPtr& req,
             }
             std::string clanId = r[0]["id"].as<std::string>();
             client->execSqlAsync(
-                "DELETE FROM clan_join_requests WHERE clan_id=$1 AND user_id=$2",
-                [callback](const Result&) {
-                    Json::Value root;
-                    root["status"] = "Request rejected";
-                    auto resp = HttpResponse::newHttpJsonResponse(root);
+                "DELETE FROM clan_join_requests WHERE clan_id=$1 AND
+user_id=$2", [callback](const Result&) { Json::Value root; root["status"] =
+"Request rejected"; auto resp = HttpResponse::newHttpJsonResponse(root);
                     callback(resp);
                 },
                 [callback](const DrogonDbException& e) {
@@ -424,10 +412,9 @@ void Clans::rejectRequest(const HttpRequestPtr& req,
             );
         },
         [callback](const DrogonDbException& e) {
-            LOG_ERROR << "Error checking leader for reject: " << e.base().what();
-            Json::Value root;
-            root["error"] = e.base().what();
-            auto resp = HttpResponse::newHttpJsonResponse(root);
+            LOG_ERROR << "Error checking leader for reject: " <<
+e.base().what(); Json::Value root; root["error"] = e.base().what(); auto resp =
+HttpResponse::newHttpJsonResponse(root);
             resp->setStatusCode(k500InternalServerError);
             callback(resp);
         },
@@ -457,8 +444,8 @@ void Clans::invite(const HttpRequestPtr& req,
             std::string clanId = r[0]["id"].as<std::string>();
 
             client->execSqlAsync(
-                "INSERT INTO clan_invites (id, clan_id, invited_user_id, invited_by) VALUES (gen_random_uuid(), $1, $2, $3)",
-                [callback](const Result&) {
+                "INSERT INTO clan_invites (id, clan_id, invited_user_id,
+invited_by) VALUES (gen_random_uuid(), $1, $2, $3)", [callback](const Result&) {
                     Json::Value root;
                     root["status"] = "Invite sent";
                     auto resp = HttpResponse::newHttpJsonResponse(root);
@@ -476,10 +463,9 @@ void Clans::invite(const HttpRequestPtr& req,
             );
         },
         [callback](const DrogonDbException& e) {
-            LOG_ERROR << "Error checking leader for invite: " << e.base().what();
-            Json::Value root;
-            root["error"] = e.base().what();
-            auto resp = HttpResponse::newHttpJsonResponse(root);
+            LOG_ERROR << "Error checking leader for invite: " <<
+e.base().what(); Json::Value root; root["error"] = e.base().what(); auto resp =
+HttpResponse::newHttpJsonResponse(root);
             resp->setStatusCode(k500InternalServerError);
             callback(resp);
         },
@@ -491,18 +477,15 @@ void Clans::invite(const HttpRequestPtr& req,
 // GET INVITES
 // ----------------------------------------------------
 void Clans::getInvites(const HttpRequestPtr& req,
-                       std::function<void(const HttpResponsePtr&)>&& callback) const {
-    auto uid = req->attributes()->get<std::string>("uid");
-    auto client = app().getDbClient();
+                       std::function<void(const HttpResponsePtr&)>&& callback)
+const { auto uid = req->attributes()->get<std::string>("uid"); auto client =
+app().getDbClient();
 
     client->execSqlAsync(
-        "SELECT c.name, c.id FROM clan_invites i JOIN clans c ON i.clan_id = c.id WHERE i.invited_user_id = $1",
-        [callback](const Result& r) {
-            Json::Value arr(Json::arrayValue);
-            for (const auto& row : r) {
-                Json::Value j;
-                j["clan_id"] = row["id"].as<std::string>();
-                j["name"] = row["name"].as<std::string>();
+        "SELECT c.name, c.id FROM clan_invites i JOIN clans c ON i.clan_id =
+c.id WHERE i.invited_user_id = $1", [callback](const Result& r) { Json::Value
+arr(Json::arrayValue); for (const auto& row : r) { Json::Value j; j["clan_id"] =
+row["id"].as<std::string>(); j["name"] = row["name"].as<std::string>();
                 arr.append(j);
             }
             auto resp = HttpResponse::newHttpJsonResponse(arr);
@@ -531,13 +514,13 @@ void Clans::acceptInvite(const HttpRequestPtr& req,
 
     // First: insert into clan_members
     client->execSqlAsync(
-        "INSERT INTO clan_members (id, clan_id, user_id, role) VALUES (gen_random_uuid(), $1, $2, 'member');",
-        [callback, client, clanId, uid](const Result&) {
+        "INSERT INTO clan_members (id, clan_id, user_id, role) VALUES
+(gen_random_uuid(), $1, $2, 'member');", [callback, client, clanId, uid](const
+Result&) {
             // Second: delete invite
             client->execSqlAsync(
-                "DELETE FROM clan_invites WHERE clan_id=$1 AND invited_user_id=$2;",
-                [callback](const Result&) {
-                    Json::Value root;
+                "DELETE FROM clan_invites WHERE clan_id=$1 AND
+invited_user_id=$2;", [callback](const Result&) { Json::Value root;
                     root["status"] = "Invite accepted";
                     auto resp = HttpResponse::newHttpJsonResponse(root);
                     callback(resp);
@@ -631,10 +614,9 @@ void Clans::search(const HttpRequestPtr &req,
 }
 
 void Clans::leaveClan(const HttpRequestPtr &req,
-                      std::function<void(const HttpResponsePtr &)> &&callback) const {
-    Json::Value root;
-    root["status"] = "Leave clan endpoint not yet implemented";
-    auto resp = HttpResponse::newHttpJsonResponse(root);
+                      std::function<void(const HttpResponsePtr &)> &&callback)
+const { Json::Value root; root["status"] = "Leave clan endpoint not yet
+implemented"; auto resp = HttpResponse::newHttpJsonResponse(root);
     callback(resp);
 }
 */

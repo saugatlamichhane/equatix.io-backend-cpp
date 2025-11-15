@@ -1,10 +1,10 @@
 #include "ValidatorHelpers.h"
-#include <set>
-#include <utility>
 #include <algorithm>
-#include <trantor/utils/Logger.h>
+#include <set>
 #include <sstream>
 #include <stdexcept>
+#include <trantor/utils/Logger.h>
+#include <utility>
 
 bool touchesCenter(const std::vector<Json::Value> &current) {
   for (auto &t : current) {
@@ -37,8 +37,6 @@ bool touchesExisting(const std::vector<Json::Value> &state,
   }
   return false;
 }
-
-
 
 bool isOccupied(std::vector<Json::Value> current_,
                 std::vector<Json::Value> state_, int row, int col) {

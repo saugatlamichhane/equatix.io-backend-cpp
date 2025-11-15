@@ -1,282 +1,284 @@
 #include "ChallengeController.h"
 #include <drogon/drogon.h>
-#include <json/json.h>
-#include <drogon/orm/Result.h>
 #include <drogon/orm/Exception.h>
+#include <drogon/orm/Result.h>
+#include <json/json.h>
 
 using namespace drogon;
 using namespace drogon::orm;
 
+void ChallengeController::sendChallenge(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback,
+    const std::string &opponentId) {
+  auto uidAttr = req->attributes()->get<std::string>("uid");
+  if (uidAttr.empty()) {
+    Json::Value res;
+    res["error"] = "Missing UID";
+    auto resp = HttpResponse::newHttpJsonResponse(res);
+    callback(resp);
+    return;
+  }
 
-void ChallengeController::sendChallenge(const HttpRequestPtr &req,
-                                        std::function<void(const HttpResponsePtr &)> &&callback,
-                                        const std::string &opponentId)
-{
-    auto uidAttr = req->attributes()->get<std::string>("uid");
-    if (uidAttr.empty())
-    {
+  std::string challengerId = uidAttr;
+  auto client = app().getDbClient();
+
+  // 1️⃣ Prevent sending challenge to oneself
+  if (challengerId == opponentId) {
+    Json::Value res;
+    res["error"] = "You cannot challenge yourself.";
+    auto resp = HttpResponse::newHttpJsonResponse(res);
+    callback(resp);
+    return;
+  }
+
+  // 2️⃣ Check if opponent exists in users table
+  client->execSqlAsync(
+      "SELECT uid FROM users WHERE uid = $1 LIMIT 1",
+      [client, callback, challengerId, opponentId](const Result &r) {
+        if (r.empty()) {
+          Json::Value res;
+          res["error"] = "Opponent not found.";
+          auto resp = HttpResponse::newHttpJsonResponse(res);
+          callback(resp);
+          return;
+        }
+
+        // 3️⃣ Opponent exists, now insert challenge if not already
+        // pending/accepted
+        client->execSqlAsync(
+            "INSERT INTO challenges (challenger_id, opponent_id, status) "
+            "SELECT $1::varchar, $2::varchar, 'pending' "
+            "WHERE NOT EXISTS (SELECT 1 FROM challenges "
+            "WHERE ((challenger_id=$1 AND opponent_id=$2) OR "
+            "(challenger_id=$2 AND opponent_id=$1)) "
+            "AND status IN ('pending', 'accepted'))",
+            [callback](const Result &r2) {
+              Json::Value res;
+              if (r2.affectedRows() == 0) {
+                res["error"] =
+                    "A challenge already exists between these players.";
+              } else {
+                res["success"] = true;
+                res["message"] = "Challenge sent successfully.";
+              }
+              auto resp = HttpResponse::newHttpJsonResponse(res);
+              callback(resp);
+            },
+            [callback](const DrogonDbException &e) {
+              Json::Value res;
+              res["error"] = e.base().what();
+              auto resp = HttpResponse::newHttpJsonResponse(res);
+              callback(resp);
+            },
+            challengerId, opponentId);
+      },
+      [callback](const DrogonDbException &e) {
         Json::Value res;
-        res["error"] = "Missing UID";
+        res["error"] = e.base().what();
         auto resp = HttpResponse::newHttpJsonResponse(res);
         callback(resp);
-        return;
-    }
-
-    std::string challengerId = uidAttr;
-    auto client = app().getDbClient();
-
-    // 1️⃣ Prevent sending challenge to oneself
-    if (challengerId == opponentId)
-    {
-        Json::Value res;
-        res["error"] = "You cannot challenge yourself.";
-        auto resp = HttpResponse::newHttpJsonResponse(res);
-        callback(resp);
-        return;
-    }
-
-    // 2️⃣ Check if opponent exists in users table
-    client->execSqlAsync(
-        "SELECT uid FROM users WHERE uid = $1 LIMIT 1",
-        [client, callback, challengerId, opponentId](const Result &r) {
-            if (r.empty())
-            {
-                Json::Value res;
-                res["error"] = "Opponent not found.";
-                auto resp = HttpResponse::newHttpJsonResponse(res);
-                callback(resp);
-                return;
-            }
-
-            // 3️⃣ Opponent exists, now insert challenge if not already pending/accepted
-            client->execSqlAsync(
-                "INSERT INTO challenges (challenger_id, opponent_id, status) "
-                "SELECT $1::varchar, $2::varchar, 'pending' "
-                "WHERE NOT EXISTS (SELECT 1 FROM challenges "
-                "WHERE ((challenger_id=$1 AND opponent_id=$2) OR "
-                "(challenger_id=$2 AND opponent_id=$1)) "
-                "AND status IN ('pending', 'accepted'))",
-                [callback](const Result &r2) {
-                    Json::Value res;
-                    if (r2.affectedRows() == 0)
-                    {
-                        res["error"] = "A challenge already exists between these players.";
-                    }
-                    else
-                    {
-                        res["success"] = true;
-                        res["message"] = "Challenge sent successfully.";
-                    }
-                    auto resp = HttpResponse::newHttpJsonResponse(res);
-                    callback(resp);
-                },
-                [callback](const DrogonDbException &e) {
-                    Json::Value res;
-                    res["error"] = e.base().what();
-                    auto resp = HttpResponse::newHttpJsonResponse(res);
-                    callback(resp);
-                },
-                challengerId, opponentId);
-        },
-        [callback](const DrogonDbException &e) {
-            Json::Value res;
-            res["error"] = e.base().what();
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        opponentId);
+      },
+      opponentId);
 }
-void ChallengeController::acceptChallenge(const HttpRequestPtr &req,
-                                          std::function<void(const HttpResponsePtr &)> &&callback,
-                                          const std::string &challengeId) {
-    auto uidAttr = req->attributes()->get<std::string>("uid");
-    if (uidAttr.empty()) {
+void ChallengeController::acceptChallenge(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback,
+    const std::string &challengeId) {
+  auto uidAttr = req->attributes()->get<std::string>("uid");
+  if (uidAttr.empty()) {
+    Json::Value res;
+    res["error"] = "Missing UID";
+    auto resp = HttpResponse::newHttpJsonResponse(res);
+    callback(resp);
+    return;
+  }
+
+  std::string receiverId = uidAttr;
+  auto client = app().getDbClient();
+
+  client->execSqlAsync(
+      "UPDATE challenges SET status='accepted' WHERE id=$1 AND opponent_id=$2 "
+      "RETURNING *",
+      [callback](const Result &r) {
         Json::Value res;
-        res["error"] = "Missing UID";
+        if (r.empty())
+          res["error"] = "Challenge not found or unauthorized";
+        else
+          res["message"] = "Challenge accepted";
         auto resp = HttpResponse::newHttpJsonResponse(res);
         callback(resp);
-        return;
-    }
-
-    std::string receiverId = uidAttr;
-    auto client = app().getDbClient();
-
-    client->execSqlAsync(
-        "UPDATE challenges SET status='accepted' WHERE id=$1 AND opponent_id=$2 RETURNING *",
-        [callback](const Result &r) {
-            Json::Value res;
-            if (r.empty())
-                res["error"] = "Challenge not found or unauthorized";
-            else
-                res["message"] = "Challenge accepted";
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        [callback](const DrogonDbException &e) {
-            Json::Value res;
-            res["error"] = e.base().what();
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        challengeId, receiverId);
+      },
+      [callback](const DrogonDbException &e) {
+        Json::Value res;
+        res["error"] = e.base().what();
+        auto resp = HttpResponse::newHttpJsonResponse(res);
+        callback(resp);
+      },
+      challengeId, receiverId);
 }
 
-void ChallengeController::rejectChallenge(const HttpRequestPtr &req,
-                                          std::function<void(const HttpResponsePtr &)> &&callback,
-                                          const std::string &challengeId) {
-    auto uidAttr = req->attributes()->get<std::string>("uid");
-    if (uidAttr.empty()) {
+void ChallengeController::rejectChallenge(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback,
+    const std::string &challengeId) {
+  auto uidAttr = req->attributes()->get<std::string>("uid");
+  if (uidAttr.empty()) {
+    Json::Value res;
+    res["error"] = "Missing UID";
+    auto resp = HttpResponse::newHttpJsonResponse(res);
+    callback(resp);
+    return;
+  }
+
+  std::string receiverId = uidAttr;
+  auto client = app().getDbClient();
+
+  client->execSqlAsync(
+      "UPDATE challenges SET status='rejected' WHERE id=$1 AND opponent_id=$2 "
+      "RETURNING *",
+      [callback](const Result &r) {
         Json::Value res;
-        res["error"] = "Missing UID";
+        if (r.empty())
+          res["error"] = "Challenge not found or unauthorized";
+        else
+          res["message"] = "Challenge rejected";
         auto resp = HttpResponse::newHttpJsonResponse(res);
         callback(resp);
-        return;
-    }
-
-    std::string receiverId = uidAttr;
-    auto client = app().getDbClient();
-
-    client->execSqlAsync(
-        "UPDATE challenges SET status='rejected' WHERE id=$1 AND opponent_id=$2 RETURNING *",
-        [callback](const Result &r) {
-            Json::Value res;
-            if (r.empty())
-                res["error"] = "Challenge not found or unauthorized";
-            else
-                res["message"] = "Challenge rejected";
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        [callback](const DrogonDbException &e) {
-            Json::Value res;
-            res["error"] = e.base().what();
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        challengeId, receiverId);
+      },
+      [callback](const DrogonDbException &e) {
+        Json::Value res;
+        res["error"] = e.base().what();
+        auto resp = HttpResponse::newHttpJsonResponse(res);
+        callback(resp);
+      },
+      challengeId, receiverId);
 }
 
-void ChallengeController::cancelSentChallenge(const HttpRequestPtr &req,
-                                              std::function<void(const HttpResponsePtr &)> &&callback,
-                                              const std::string &challengeId)
-{
-    auto uidAttr = req->attributes()->get<std::string>("uid");
-    if (uidAttr.empty()) {
+void ChallengeController::cancelSentChallenge(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback,
+    const std::string &challengeId) {
+  auto uidAttr = req->attributes()->get<std::string>("uid");
+  if (uidAttr.empty()) {
+    Json::Value res;
+    res["error"] = "Missing UID";
+    auto resp = HttpResponse::newHttpJsonResponse(res);
+    callback(resp);
+    return;
+  }
+
+  std::string challengerId = uidAttr;
+  auto client = app().getDbClient();
+
+  // Only cancel pending challenges sent by this user
+  client->execSqlAsync(
+      "UPDATE challenges SET status='cancelled' WHERE id=$1 AND "
+      "challenger_id=$2 AND status='pending' RETURNING *",
+      [callback](const Result &r) {
         Json::Value res;
-        res["error"] = "Missing UID";
+        if (r.empty()) {
+          res["error"] =
+              "Challenge not found, already started, or unauthorized";
+        } else {
+          res["message"] = "Challenge cancelled successfully";
+        }
         auto resp = HttpResponse::newHttpJsonResponse(res);
         callback(resp);
-        return;
-    }
-
-    std::string challengerId = uidAttr;
-    auto client = app().getDbClient();
-
-    // Only cancel pending challenges sent by this user
-    client->execSqlAsync(
-        "UPDATE challenges SET status='cancelled' WHERE id=$1 AND challenger_id=$2 AND status='pending' RETURNING *",
-        [callback](const Result &r) {
-            Json::Value res;
-            if (r.empty()) {
-                res["error"] = "Challenge not found, already started, or unauthorized";
-            } else {
-                res["message"] = "Challenge cancelled successfully";
-            }
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        [callback](const DrogonDbException &e) {
-            Json::Value res;
-            res["error"] = e.base().what();
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        challengeId, challengerId);
+      },
+      [callback](const DrogonDbException &e) {
+        Json::Value res;
+        res["error"] = e.base().what();
+        auto resp = HttpResponse::newHttpJsonResponse(res);
+        callback(resp);
+      },
+      challengeId, challengerId);
 }
 
+void ChallengeController::listSentChallenges(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback) {
+  auto uidAttr = req->attributes()->get<std::string>("uid");
+  if (uidAttr.empty()) {
+    Json::Value res;
+    res["error"] = "Missing UID";
+    auto resp = HttpResponse::newHttpJsonResponse(res);
+    callback(resp);
+    return;
+  }
 
-void ChallengeController::listSentChallenges(const HttpRequestPtr &req,
-                                             std::function<void(const HttpResponsePtr &)> &&callback) {
-    auto uidAttr = req->attributes()->get<std::string>("uid");
-    if (uidAttr.empty()) {
+  std::string userId = uidAttr;
+  auto client = app().getDbClient();
+
+  client->execSqlAsync(
+      "SELECT * FROM challenges WHERE challenger_id = $1",
+      [callback](const Result &r) {
         Json::Value res;
-        res["error"] = "Missing UID";
+        Json::Value challenges(Json::arrayValue);
+
+        for (const auto &row : r) {
+          Json::Value challenge;
+          challenge["id"] = row["id"].as<std::string>();
+          challenge["opponent_id"] = row["opponent_id"].as<std::string>();
+          challenge["challenger_id"] = row["challenger_id"].as<std::string>();
+          challenge["status"] = row["status"].as<std::string>();
+          challenge["created_at"] = row["created_at"].as<std::string>();
+          challenges.append(challenge);
+        }
+
+        res["challenges"] = challenges;
         auto resp = HttpResponse::newHttpJsonResponse(res);
         callback(resp);
-        return;
-    }
-
-    std::string userId = uidAttr;
-    auto client = app().getDbClient();
-
-    client->execSqlAsync(
-        "SELECT * FROM challenges WHERE challenger_id = $1",
-        [callback](const Result &r) {
-            Json::Value res;
-            Json::Value challenges(Json::arrayValue);
-            
-            for (const auto &row : r) {
-                Json::Value challenge;
-                challenge["id"] = row["id"].as<std::string>();
-                challenge["opponent_id"] = row["opponent_id"].as<std::string>();
-                challenge["challenger_id"] = row["challenger_id"].as<std::string>();
-                challenge["status"] = row["status"].as<std::string>();
-                challenge["created_at"] = row["created_at"].as<std::string>();
-                challenges.append(challenge);
-            }
-            
-            res["challenges"] = challenges;
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        [callback](const DrogonDbException &e) {
-            Json::Value res;
-            res["error"] = e.base().what();
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        userId);
+      },
+      [callback](const DrogonDbException &e) {
+        Json::Value res;
+        res["error"] = e.base().what();
+        auto resp = HttpResponse::newHttpJsonResponse(res);
+        callback(resp);
+      },
+      userId);
 }
 
-void ChallengeController::listReceivedChallenges(const HttpRequestPtr &req,
-                                                std::function<void(const HttpResponsePtr &)> &&callback) {
-    auto uidAttr = req->attributes()->get<std::string>("uid");
-    if (uidAttr.empty()) {
+void ChallengeController::listReceivedChallenges(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback) {
+  auto uidAttr = req->attributes()->get<std::string>("uid");
+  if (uidAttr.empty()) {
+    Json::Value res;
+    res["error"] = "Missing UID";
+    auto resp = HttpResponse::newHttpJsonResponse(res);
+    callback(resp);
+    return;
+  }
+
+  std::string userId = uidAttr;
+  auto client = app().getDbClient();
+
+  client->execSqlAsync(
+      "SELECT * FROM challenges WHERE opponent_id = $1",
+      [callback](const Result &r) {
         Json::Value res;
-        res["error"] = "Missing UID";
+        Json::Value challenges(Json::arrayValue);
+
+        for (const auto &row : r) {
+          Json::Value challenge;
+          challenge["id"] = row["id"].as<std::string>();
+          challenge["challenger_id"] = row["challenger_id"].as<std::string>();
+          challenge["opponent_id"] = row["opponent_id"].as<std::string>();
+          challenge["status"] = row["status"].as<std::string>();
+          challenge["created_at"] = row["created_at"].as<std::string>();
+          challenges.append(challenge);
+        }
+
+        res["challenges"] = challenges;
         auto resp = HttpResponse::newHttpJsonResponse(res);
         callback(resp);
-        return;
-    }
-
-    std::string userId = uidAttr;
-    auto client = app().getDbClient();
-
-    client->execSqlAsync(
-        "SELECT * FROM challenges WHERE opponent_id = $1",
-        [callback](const Result &r) {
-            Json::Value res;
-            Json::Value challenges(Json::arrayValue);
-            
-            for (const auto &row : r) {
-                Json::Value challenge;
-                challenge["id"] = row["id"].as<std::string>();
-                challenge["challenger_id"] = row["challenger_id"].as<std::string>();
-                challenge["opponent_id"] = row["opponent_id"].as<std::string>();
-                challenge["status"] = row["status"].as<std::string>();
-                challenge["created_at"] = row["created_at"].as<std::string>();
-                challenges.append(challenge);
-            }
-            
-            res["challenges"] = challenges;
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        [callback](const DrogonDbException &e) {
-            Json::Value res;
-            res["error"] = e.base().what();
-            auto resp = HttpResponse::newHttpJsonResponse(res);
-            callback(resp);
-        },
-        userId);
+      },
+      [callback](const DrogonDbException &e) {
+        Json::Value res;
+        res["error"] = e.base().what();
+        auto resp = HttpResponse::newHttpJsonResponse(res);
+        callback(resp);
+      },
+      userId);
 }

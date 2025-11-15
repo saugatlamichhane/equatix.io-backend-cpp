@@ -1,8 +1,8 @@
 #include "GameLogic.h"
-#include "RoomState.h"
-#include <random>
-#include <algorithm>
 #include "Board.h"
+#include "RoomState.h"
+#include <algorithm>
+#include <random>
 
 void reset(RoomState &room, int playerTurn) {
   std::vector<std::string> &playerRack =
@@ -17,17 +17,15 @@ void reset(RoomState &room, int playerTurn) {
   for (auto &tile : playerRack) {
     response["rack"].append(tile);
   }
-      if (playerTurn == 1) {
-          room.player1Conn->send(
+  if (playerTurn == 1) {
+    room.player1Conn->send(
 
-                  Json::writeString(Json::StreamWriterBuilder(), response));
-        
-      } else {
-                  room.player2Conn->send(Json::writeString(Json::StreamWriterBuilder(), response));
-                 
+        Json::writeString(Json::StreamWriterBuilder(), response));
 
-      }
- 
+  } else {
+    room.player2Conn->send(
+        Json::writeString(Json::StreamWriterBuilder(), response));
+  }
 }
 
 std::vector<std::string> createTileBag() {
