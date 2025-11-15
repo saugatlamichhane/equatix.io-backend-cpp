@@ -61,4 +61,64 @@ void PuzzleController::getPuzzle(
         },
         puzzleId
     );
+
+
 }
+
+
+
+void PuzzleController::listPuzzles(
+    const HttpRequestPtr &req,
+    std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    // 1. Extract UID from attributes (set by FirebaseAuthFilter)
+    auto uidAttr = req->attributes()->get<std::string>("uid");
+    if (uidAttr.empty())
+    {
+        Json::Value err;
+        err["error"] = "Missing UID";
+        callback(HttpResponse::newHttpJsonResponse(err));
+        return;
+    }
+    std::string userId = uidAttr;
+
+    // 2. DB client
+    auto db = app().getDbClient();
+
+    // 3. Query puzzles + user progress in one SQL (LEFT JOIN)
+    db->execSqlAsync(
+        "SELECT p.puzzle_id, p.difficulty, p.objective, "
+        "       COALESCE(pp.solved, FALSE) AS solved "
+        "FROM puzzles p "
+        "LEFT JOIN puzzle_progress pp "
+        "  ON pp.puzzle_id = p.puzzle_id AND pp.user_id = $1 "
+        "ORDER BY p.puzzle_id ASC",
+        [callback](const Result &r) {
+            Json::Value list(Json::arrayValue);
+
+            for (auto const &row : r)
+            {
+                Json::Value item;
+                item["puzzle_id"] = row["puzzle_id"].as<int>();
+                item["difficulty"] = row["difficulty"].as<std::string>();
+                item["objective"] = row["objective"].as<std::string>();
+                item["solved"] = row["solved"].as<bool>();
+
+                list.append(item);
+            }
+
+            auto resp = HttpResponse::newHttpJsonResponse(list);
+            resp->setStatusCode(k200OK);
+            callback(resp);
+        },
+        [callback](const DrogonDbException &e) {
+            Json::Value err;
+            err["error"] = e.base().what();
+            auto resp = HttpResponse::newHttpJsonResponse(err);
+            resp->setStatusCode(k500InternalServerError);
+            callback(resp);
+        },
+        userId  // SQL parameter $1
+    );
+}
+
