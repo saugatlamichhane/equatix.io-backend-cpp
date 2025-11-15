@@ -2,9 +2,188 @@
 #include <drogon/drogon.h>
 #include <drogon/orm/Mapper.h>
 #include <json/json.h>
+#include "../utils/Board.h"
+#include "../utils/GameLogic.h"
+#include "../utils/ValidatorHelpers.h"
 
 using namespace drogon;
 using namespace drogon::orm;
+
+
+void PuzzleController::validateMove(const HttpRequestPtr &req,
+                                    std::function<void(const HttpResponsePtr &)> &&callback)
+{
+    // 1️⃣ Get UID from request attributes
+    auto uidAttr = req->attributes()->get<std::string>("uid");
+    if (uidAttr.empty())
+    {
+        auto resp = HttpResponse::newHttpJsonResponse(Json::Value("Missing UID in request"));
+        resp->setStatusCode(k401Unauthorized);
+        callback(resp);
+        return;
+    }
+    std::string userId = uidAttr;
+
+    // 2️⃣ Parse JSON body
+    Json::Value root;
+    Json::CharReaderBuilder builder;
+    std::string errs;
+    std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+    std::string body{req->getBody()};
+    if (!reader->parse(body.c_str(), body.c_str() + body.size(), &root, &errs))
+    {
+        auto resp = HttpResponse::newHttpJsonResponse(Json::Value("Invalid JSON: " + errs));
+        resp->setStatusCode(k400BadRequest);
+        callback(resp);
+        return;
+    }
+
+    int puzzleId = root["puzzle_id"].asInt();
+    Json::Value moveTiles = root["placed_tiles"]; // array of {row, col, value}
+
+    auto db = app().getDbClient();
+
+    // 3️⃣ Fetch puzzle board and objective
+    db->execSqlAsync(
+        "SELECT board_state, objective FROM puzzles WHERE puzzle_id=$1",
+        [callback, moveTiles, userId, puzzleId](const Result &r) {
+            if (r.empty())
+            {
+                auto resp = HttpResponse::newHttpJsonResponse(Json::Value("Puzzle not found for puzzle_id=" + std::to_string(puzzleId)));
+                resp->setStatusCode(k404NotFound);
+                callback(resp);
+                return;
+            }
+
+            // Parse board JSON
+            Json::Value boardJson;
+            std::string boardStr = r[0]["board_state"].as<std::string>();
+            Json::CharReaderBuilder builder;
+            std::string errs;
+            std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+            reader->parse(boardStr.c_str(), boardStr.c_str() + boardStr.size(), &boardJson, &errs);
+
+            std::string objective = r[0]["objective"].as<std::string>();
+
+            // Convert JSON arrays to std::vector<Json::Value> for helpers
+            std::vector<Json::Value> boardVec(boardJson.begin(), boardJson.end());
+            std::vector<Json::Value> moveTilesVec;
+
+            // --- VALIDATION LOGIC ---
+
+            // 1️⃣ Check if cells are already occupied
+            for (auto &tile : moveTilesVec)
+            {
+                int row = tile["row"].asInt();
+                int col = tile["col"].asInt();
+                std::string value = tile["value"].asString();
+
+                if (isOccupied(moveTilesVec, boardVec, row, col))
+                {
+                    std::string msg = "Cell already occupied at row " + std::to_string(row) +
+                                      ", col " + std::to_string(col) +
+                                      " for tile '" + value + "'";
+                    auto resp = HttpResponse::newHttpJsonResponse(Json::Value(msg));
+                    resp->setStatusCode(k400BadRequest);
+                    callback(resp);
+                    return;
+                }
+                moveTilesVec.push_back(tile);
+
+            }
+
+            // 2️⃣ Check straight line
+            if (!isStraightLine(moveTilesVec, -1, -1))
+            {
+                std::string msg = "Tiles are not in a straight line. Tiles placed:";
+                for (auto &t : moveTilesVec)
+                    msg += " (" + std::to_string(t["row"].asInt()) + "," + std::to_string(t["col"].asInt()) + ")";
+                auto resp = HttpResponse::newHttpJsonResponse(Json::Value(msg));
+                resp->setStatusCode(k400BadRequest);
+                callback(resp);
+                return;
+            }
+
+            // 3️⃣ Check contiguity
+            if (!isContiguous(boardVec, moveTilesVec, -1, -1))
+            {
+                std::string msg = "Tiles are not contiguous. Tiles placed:";
+                for (auto &t : moveTilesVec)
+                    msg += " (" + std::to_string(t["row"].asInt()) + "," + std::to_string(t["col"].asInt()) + ")";
+                auto resp = HttpResponse::newHttpJsonResponse(Json::Value(msg));
+                resp->setStatusCode(k400BadRequest);
+                callback(resp);
+                return;
+            }
+
+            // 4️⃣ Validate affected equations
+            auto affected = getAffectedEquations(boardVec, moveTilesVec);
+            for (auto &seq : affected)
+            {
+                std::string expr;
+                for (auto &t : seq)
+                    expr += t["value"].asString();
+
+                auto parts = splitEquation(expr);
+                if (parts.size() < 2)
+                {
+                    auto resp = HttpResponse::newHttpJsonResponse(
+                        Json::Value("Invalid equation (must contain '='): " + expr)
+                    );
+                    resp->setStatusCode(k400BadRequest);
+                    callback(resp);
+                    return;
+                }
+
+                auto val = evaluateExpression(parts[0]);
+                for (auto &part : parts)
+                {
+                    if (evaluateExpression(part) != val)
+                    {
+                        auto resp = HttpResponse::newHttpJsonResponse(
+                            Json::Value("Equation does not hold: " + expr + ", part: " + part)
+                        );
+                        resp->setStatusCode(k400BadRequest);
+                        callback(resp);
+                        return;
+                    }
+                }
+            }
+
+            // ✅ Move is valid
+            auto resp = HttpResponse::newHttpJsonResponse(Json::Value("Move valid"));
+            resp->setStatusCode(k200OK);
+            callback(resp);
+
+            auto db = app().getDbClient();
+db->execSqlAsync(
+    "INSERT INTO puzzle_progress(user_id, puzzle_id, solved, last_updated) "
+    "VALUES ($1, $2, TRUE, NOW()) "
+    "ON CONFLICT(user_id, puzzle_id) "
+    "DO UPDATE SET solved = TRUE, last_updated = NOW()",
+    [userId, puzzleId](const Result &r) {
+        // optional: log success
+        LOG_DEBUG << "Puzzle progress updated for user=" << userId << ", puzzle=" << puzzleId;
+    },
+    [userId, puzzleId](const DrogonDbException &e) {
+        LOG_ERROR << "Failed to update puzzle_progress for user=" << userId
+                  << ", puzzle=" << puzzleId << ": " << e.base().what();
+    },
+    userId, puzzleId
+);
+
+        },
+        [callback](const DrogonDbException &e) {
+            auto resp = HttpResponse::newHttpJsonResponse(Json::Value("Database error: " + std::string(e.base().what())));
+            resp->setStatusCode(k500InternalServerError);
+            callback(resp);
+        },
+        puzzleId
+    );
+}
+
+
+
 
 void PuzzleController::getPuzzle(
     const HttpRequestPtr &req,
