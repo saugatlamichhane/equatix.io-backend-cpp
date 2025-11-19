@@ -164,6 +164,18 @@ void FirebaseAuthFilter::doFilter(const HttpRequestPtr &req,
           LOG_DEBUG << "DB Error " << e.base().what();
         },
         uid, name, email, photo);
+    client->execSqlAsync(
+    "INSERT INTO stats(uid, best_elo, current_win_streak, best_win_streak) "
+    "VALUES($1, 1000, 0, 0) "
+    "ON CONFLICT (uid) DO NOTHING",
+    [uid](const drogon::orm::Result &) {
+        LOG_INFO << "Stats initialized for uid: " << uid;
+    },
+    [](const drogon::orm::DrogonDbException &e) {
+        LOG_DEBUG << "Stats init DB Error: " << e.base().what();
+    },
+    uid);
+
     fccb();
 
   } catch (const std::exception &e) {

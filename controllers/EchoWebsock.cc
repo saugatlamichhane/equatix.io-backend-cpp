@@ -431,6 +431,29 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                                 << e.base().what();
                     },
                     newLoserElo, loserUid);
+
+                clientPtr->execSqlAsync(
+                  "UPDATE stats SET current_win_streak = current_win_streak + 1, best_win_streak = GREATEST(best_win_streak, current_win_Streak + 1), best_elo = GREATEST(best_elo, $2) WHERE uid = $1",
+                  [winnerUid] (const drogon::orm::Result&) {
+                    LOG_INFO << "Updated winner streaks + best_elo: " << winnerUid;
+
+                  }, 
+                  [](const DrogonDbException& e) {
+                    LOG_ERROR << "Failed to update winner stats: " << e.base().what();
+                  }, winnerUid, newWinnerElo
+                );
+
+                clientPtr->execSqlAsync(
+                  "UPDATE stats SET current_win_streak = 0, best_elo = GREATEST(best_elo, $2) WHERE uid = $1",
+                  [loserUid] (const drogon::orm::Result&) {
+                    LOG_INFO << "Updated loser stats: " << loserUid;
+
+                  }, 
+                  [](const DrogonDbException& e) {
+                    LOG_ERROR << "Failed to update loser stats: " << e.base().what();
+                  }, loserUid, newLoserElo
+                );
+
               }
             },
             [](const DrogonDbException &e) {
@@ -471,6 +494,29 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                     "draws + 1, elo=$1 WHERE uid=$2;",
                     [](const drogon::orm::Result &) {},
                     [](const DrogonDbException &) {}, newElo2, uid2);
+
+                  clientPtr->execSqlAsync(
+                  "UPDATE stats SET current_win_streak = 0, best_elo = GREATEST(best_elo, $2) WHERE uid = $1",
+                  [uid1] (const drogon::orm::Result&) {
+                    LOG_INFO << "Updated p1 stats(draw): " << uid1;
+
+                  }, 
+                  [](const DrogonDbException& e) {
+                    LOG_ERROR << "Failed to update p1 stats(draw): " << e.base().what();
+                  }, uid1, newElo1
+                );
+
+                  clientPtr->execSqlAsync(
+                  "UPDATE stats SET current_win_streak = 0, best_elo = GREATEST(best_elo, $2) WHERE uid = $1",
+                  [uid2] (const drogon::orm::Result&) {
+                    LOG_INFO << "Updated p2 stats(draw): " << uid2;
+
+                  }, 
+                  [](const DrogonDbException& e) {
+                    LOG_ERROR << "Failed to update p2 stats(draw): " << e.base().what();
+                  }, uid2, newElo2
+                );
+
               }
             },
             [](const DrogonDbException &e) {
