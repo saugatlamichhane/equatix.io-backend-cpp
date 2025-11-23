@@ -33,3 +33,9 @@ Themes
 doesn't work in safari
 
 callbacks in all 
+
+
+
+just puts = crashes
+not in rack validation
+division by 0 crashes

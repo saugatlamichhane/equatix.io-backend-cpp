@@ -72,7 +72,7 @@ void PuzzleController::validateMove(
         // --- VALIDATION LOGIC ---
 
         // 1️⃣ Check if cells are already occupied
-        for (auto &tile : moveTilesVec) {
+        for (auto &tile : moveTiles) {
           int row = tile["row"].asInt();
           int col = tile["col"].asInt();
           std::string value = tile["value"].asString();
@@ -90,7 +90,31 @@ void PuzzleController::validateMove(
         }
 
         // 2️⃣ Check straight line
-        if (!isStraightLine(moveTilesVec, -1, -1)) {
+        auto straightLineValidation = [](std::vector<Json::Value> &tiles) {
+          if (tiles.empty())
+            return true;
+          bool horizontal = true;
+          int firstRow = tiles[0]["row"].asInt();
+          for (const auto &tile : tiles) {
+            if (tile["row"].asInt() != firstRow) {
+              horizontal = false;
+              break;
+            }
+          }
+          if (horizontal)
+            return true;
+
+          bool vertical = true;
+          int firstCol = tiles[0]["col"].asInt();
+          for (const auto &tile : tiles) {
+            if (tile["col"].asInt() != firstCol) {
+              vertical = false;
+              break;
+            }
+          }
+          return vertical;
+        };
+        if (!straightLineValidation(moveTilesVec)) {
           std::string msg = "Tiles are not in a straight line. Tiles placed:";
           for (auto &t : moveTilesVec)
             msg += " (" + std::to_string(t["row"].asInt()) + "," +
@@ -101,8 +125,97 @@ void PuzzleController::validateMove(
           return;
         }
 
+        auto touchesExistingValidation = [](std::vector<Json::Value> &board,
+                                               std::vector<Json::Value> &tiles) {
+          for (auto &t : tiles) {
+            int row = t["row"].asInt();
+            int col = t["col"].asInt();
+            // Check adjacent cells
+            std::vector<std::pair<int, int>> directions = {
+                {0, 1}, {1, 0}, {0, -1}, {-1, 0}};
+            for (auto &[dr, dc] : directions) {
+              int adjRow = row + dr;
+              int adjCol = col + dc;
+              for (auto &b : board) {
+                if (b["row"].asInt() == adjRow &&
+                    b["col"].asInt() == adjCol) {
+                  return true;
+                }
+              }
+            }
+          }
+          return false;
+        };
+        if (!touchesExistingValidation(boardVec, moveTilesVec)) {
+          std::string msg = "Placed tiles do not touch any existing tiles. "
+                            "Tiles placed:";
+          for (auto &t : moveTilesVec)
+            msg += " (" + std::to_string(t["row"].asInt()) + "," +
+                   std::to_string(t["col"].asInt()) + ")";
+          auto resp = HttpResponse::newHttpJsonResponse(Json::Value(msg));
+          resp->setStatusCode(k400BadRequest);
+          callback(resp);
+          return;
+        }
+
         // 3️⃣ Check contiguity
-        if (!isContiguous(boardVec, moveTilesVec, -1, -1)) {
+        auto contiguousValidation = [](std::vector<Json::Value> &board,
+                                       std::vector<Json::Value> &tiles) {
+          if (tiles.empty())
+            return true;
+          bool sameRow = std::all_of(
+              tiles.begin(), tiles.end(),
+              [&](const auto &tile) { return tile["row"].asInt() == tiles[0]["row"]; });
+          bool sameCol = std::all_of(
+              tiles.begin(), tiles.end(),
+              [&](const auto &tile) { return tile["col"].asInt() == tiles[0]["row"]; });
+          if (!sameRow && !sameCol)
+            return false;
+
+          if (sameRow) {
+            std::set<int> cols;
+            for (const auto &tile : tiles) {
+                cols.insert(tile["col"].asInt());
+            }
+            for (const auto &tile : board) {
+                cols.insert(tile["col"].asInt());
+            }
+            int minCol = 20, maxCol = -1;
+            for (const auto &tile : tiles) {
+              minCol = std::min(minCol, tile["col"].asInt());
+              maxCol = std::max(maxCol, tile["col"].asInt());
+            }
+            for (int c = minCol; c <= maxCol; ++c) {
+              if (cols.find(c) == cols.end()) {
+                return false;
+              }
+            }
+          } else if (sameCol) {
+            std::set<int> rows;
+            for (const auto &tile : tiles) {
+                rows.insert(tile["row"].asInt());
+            }
+            for (const auto &tile : board) {
+                rows.insert(tile["row"].asInt());
+            }
+            int minRow = 20, maxRow = -1;
+            for (const auto &tile : tiles) {
+              minRow = std::min(minRow, tile["row"].asInt());
+              maxRow = std::max(maxRow, tile["row"].asInt());
+            }
+            for (int r = minRow; r <= maxRow; ++r) {
+              if (rows.find(r) == rows.end()) {
+                LOG_DEBUG << "row " << r << " not found";
+                return false;
+
+              } else {
+                LOG_DEBUG << "row " << r << " found";
+              }
+            }
+          }
+          return true;
+        };
+        if (!contiguousValidation(boardVec, moveTilesVec)) {
           std::string msg = "Tiles are not contiguous. Tiles placed:";
           for (auto &t : moveTilesVec)
             msg += " (" + std::to_string(t["row"].asInt()) + "," +
