@@ -1,5 +1,6 @@
 #include "EloMatchmakingController.h"
 #include <trantor/utils/Logger.h>
+#include "LiveStatsController.h"
 
 void EloMatchmakingController::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                                                 std::string &&message,
@@ -81,6 +82,7 @@ void EloMatchmakingController::handleConnectionClosed(const WebSocketConnectionP
 {
     // Remove closed connection from wsMap_ and waitingQueue_
     std::string toErase;
+    LiveStatsController::decrementActivePlayers();
 
     {
         std::lock_guard<std::mutex> lock(queueMutex_);
@@ -110,4 +112,5 @@ void EloMatchmakingController::handleNewConnection(const HttpRequestPtr &,
                                                    const WebSocketConnectionPtr &)
 {
     // Nothing needed
+    LiveStatsController::incrementActivePlayers();
 }

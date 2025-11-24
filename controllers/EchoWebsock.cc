@@ -19,6 +19,7 @@
 #include <type_traits>
 #include <variant>
 #include <vector>
+#include "LiveStatsController.h"
 
 using namespace drogon::orm;
 
@@ -558,6 +559,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   Subscriber s;
   s.chatRoomName_ = req->getParameter("room_name");
   auto uid = req->getParameter("uid");
+  LiveStatsController::incrementActivePlayers();
   auto params = req->getParameters();
 
   auto &room = rooms[s.chatRoomName_];
@@ -658,6 +660,7 @@ void EchoWebsock::handleConnectionClosed(
   LOG_DEBUG << "websocket closed!";
   auto &s = wsConnPtr->getContextRef<Subscriber>();
   chatRooms_.unsubscribe(s.chatRoomName_, s.id_);
+  LiveStatsController::decrementActivePlayers();
 
   // Clear the room connection to allow new players to join
   auto &room = rooms[s.chatRoomName_];
