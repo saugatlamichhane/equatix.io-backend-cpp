@@ -22,4 +22,5 @@ struct RoomState {
   int score1 = 0;
   int score2 = 0;
   int passes = 0;
+  int challengeId = -1;
 };

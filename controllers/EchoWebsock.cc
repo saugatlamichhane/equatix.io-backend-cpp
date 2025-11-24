@@ -364,6 +364,8 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     chatRooms_.publish(s.chatRoomName_, jsonStr);
     auto win = checkEndGame(room);
     if (win) {
+
+      
       Json::Value winResponse;
       winResponse["type"] = "game_over";
       int winner = 0;
@@ -372,6 +374,19 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       } else if (room.score2 > room.score1) {
         winner = 2;
       }
+
+      auto clientPtr = drogon::app().getDbClient();
+
+      if (room.challengeId != -1) {
+    clientPtr->execSqlAsync(
+        "UPDATE challenges SET status='completed', winner=$1 WHERE id=$2",
+        [](const Result &){ LOG_INFO << "Challenge updated"; },
+        [](const DrogonDbException &e){ LOG_ERROR << e.base().what(); },
+        winner == 1 ? room.player1Uid : room.player2Uid,
+        room.challengeId
+    );
+}
+
       winResponse["winner"] = winner;
       winResponse["score1"] = room.score1;
       winResponse["score2"] = room.score2;
@@ -464,6 +479,15 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       } else {
         // Draw case
         auto clientPtr = drogon::app().getDbClient();
+        if (room.challengeId != -1) {
+    clientPtr->execSqlAsync(
+        "UPDATE challenges SET status='completed', winner=NULL WHERE id=$2",
+        [](const Result &){ LOG_INFO << "Challenge updated"; },
+        [](const DrogonDbException &e){ LOG_ERROR << e.base().what(); },
+        room.challengeId
+    );
+}
+
         clientPtr->execSqlAsync(
             "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
             [clientPtr, room](const drogon::orm::Result &r) {
@@ -537,6 +561,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   auto params = req->getParameters();
 
   auto &room = rooms[s.chatRoomName_];
+  room.challengeId = std::stoi(req->getParameter("room_name").substr(10));
 
   Json::Value init;
   init["type"] = "init";
