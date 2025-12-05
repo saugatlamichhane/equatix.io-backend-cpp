@@ -7,6 +7,7 @@
 #include <models/Users.h>
 #include <trantor/utils/Date.h>
 #include <trantor/utils/Logger.h>
+#include <cmath>
 
 using namespace drogon::orm;
 using namespace drogon_model::equatix;
