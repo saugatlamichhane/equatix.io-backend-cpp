@@ -21,16 +21,22 @@ void Profile::getInfo(
     auto client = drogon::app().getDbClient();
 
     client->execSqlAsync(
-        R"(
-            SELECT 
-                u.uid, u.name, u.email, u.photo, u.elo,
-                u.gamesplayed, u.wins, u.losses, u.draws, u.created_at,
-                s.best_elo, s.best_win_streak, s.current_win_streak,
-                (SELECT COUNT(*) + 1 FROM users WHERE elo > u.elo) AS rank
-            FROM users u
-            LEFT JOIN stats s ON u.uid = s.uid
-            WHERE u.uid = $1
-        )",
+R"(
+        SELECT 
+            u.uid, u.name, u.email, u.photo, u.elo,
+            u.gamesplayed, u.wins, u.losses, u.draws, u.created_at,
+            s.best_elo, s.best_win_streak, s.current_win_streak,
+            (SELECT COUNT(*) + 1 FROM users WHERE elo > u.elo) AS rank,
+            COALESCE(SUM(EXTRACT(EPOCH FROM c.completed_at - c.created_at)), 0) AS total_game_seconds,
+            COALESCE(AVG(EXTRACT(EPOCH FROM c.completed_at - c.created_at)), 0) AS avg_game_seconds
+        FROM users u
+        LEFT JOIN stats s ON u.uid = s.uid
+        -- Join challenges where the user was a participant and the game is completed
+        LEFT JOIN challenges c ON 
+            (u.uid = c.challenger_id OR u.uid = c.opponent_id) AND c.status = 'completed' AND c.completed_at IS NOT NULL
+        WHERE u.uid = $1
+        GROUP BY u.uid, u.name, u.email, u.photo, u.elo, u.gamesplayed, u.wins, u.losses, u.draws, u.created_at, s.best_elo, s.best_win_streak, s.current_win_streak
+    )",
         [callback](const Result &r) {
             if (r.empty()) {
                 Json::Value error;
@@ -78,6 +84,10 @@ void Profile::getInfo(
 
             result["joined_ago"] = joinedAgo;
 
+            long long totalGameSeconds = row["total_game_seconds"].as<long long>();
+            double avgGameSeconds = row["avg_game_seconds"].as<double>();
+            result["avgGameTimeMinutes"] = round((avgGameSeconds / 60.0) * 10) / 10.0; // rounded to 2 decimal places
+            result["totalPlayTimeHours"] = (int) round((totalGameSeconds / 3600.0) * 10) / 10.0; // rounded to 2 decimal places
             callback(drogon::HttpResponse::newHttpJsonResponse(result));
         },
         [callback](const DrogonDbException &e) {

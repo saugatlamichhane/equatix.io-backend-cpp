@@ -380,7 +380,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
 
       if (room.challengeId != -1) {
     clientPtr->execSqlAsync(
-        "UPDATE challenges SET status='completed', winner=$1 WHERE id=$2",
+        "UPDATE challenges SET status='completed', winner=$1, completed_at = now() WHERE id=$2",
         [](const Result &){ LOG_INFO << "Challenge updated"; },
         [](const DrogonDbException &e){ LOG_ERROR << e.base().what(); },
         winner == 1 ? room.player1Uid : room.player2Uid,
@@ -482,7 +482,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         auto clientPtr = drogon::app().getDbClient();
         if (room.challengeId != -1) {
     clientPtr->execSqlAsync(
-        "UPDATE challenges SET status='completed', winner=NULL WHERE id=$2",
+        "UPDATE challenges SET status='completed', winner=NULL, completed_at=now() WHERE id=$2",
         [](const Result &){ LOG_INFO << "Challenge updated"; },
         [](const DrogonDbException &e){ LOG_ERROR << e.base().what(); },
         room.challengeId
