@@ -39,3 +39,13 @@ callbacks in all
 just puts = crashes
 not in rack validation
 division by 0 crashes
+
+
+remove game variants (see challenges)
+time constraint
+disconnection logic 
+bot 
+puzzles 
+learn
+
+fix build
