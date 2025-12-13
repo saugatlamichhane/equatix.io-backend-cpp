@@ -126,7 +126,7 @@ void PuzzleController::validateMove(
         }
 
         auto touchesExistingValidation = [](std::vector<Json::Value> &board,
-                                               std::vector<Json::Value> &tiles) {
+                                            std::vector<Json::Value> &tiles) {
           for (auto &t : tiles) {
             int row = t["row"].asInt();
             int col = t["col"].asInt();
@@ -137,8 +137,7 @@ void PuzzleController::validateMove(
               int adjRow = row + dr;
               int adjCol = col + dc;
               for (auto &b : board) {
-                if (b["row"].asInt() == adjRow &&
-                    b["col"].asInt() == adjCol) {
+                if (b["row"].asInt() == adjRow && b["col"].asInt() == adjCol) {
                   return true;
                 }
               }
@@ -146,7 +145,32 @@ void PuzzleController::validateMove(
           }
           return false;
         };
-        if (!touchesExistingValidation(boardVec, moveTilesVec)) {
+
+        auto touchesCenter = [](const std::vector<Json::Value> &current) {
+          for (auto &t : current) {
+            if (t["row"].asInt() == 8 && t["col"].asInt() == 8) {
+              return true;
+            }
+          }
+          return false;
+        };
+        // If board is empty, must touch center
+        if (boardVec.empty()) {
+          if (!touchesCenter(moveTilesVec)) {
+            std::string msg =
+                "First move must cover the center cell (8,8). Tiles placed:";
+            for (auto &t : moveTilesVec)
+              msg += " (" + std::to_string(t["row"].asInt()) + "," +
+                     std::to_string(t["col"].asInt()) + ")";
+
+            auto resp = HttpResponse::newHttpJsonResponse(Json::Value(msg));
+            resp->setStatusCode(k400BadRequest);
+            callback(resp);
+            return;
+          }
+        }
+        if (!boardVec.empty() &&
+            !touchesExistingValidation(boardVec, moveTilesVec)) {
           std::string msg = "Placed tiles do not touch any existing tiles. "
                             "Tiles placed:";
           for (auto &t : moveTilesVec)
@@ -163,22 +187,24 @@ void PuzzleController::validateMove(
                                        std::vector<Json::Value> &tiles) {
           if (tiles.empty())
             return true;
-          bool sameRow = std::all_of(
-              tiles.begin(), tiles.end(),
-              [&](const auto &tile) { return tile["row"].asInt() == tiles[0]["row"]; });
-          bool sameCol = std::all_of(
-              tiles.begin(), tiles.end(),
-              [&](const auto &tile) { return tile["col"].asInt() == tiles[0]["row"]; });
+          bool sameRow =
+              std::all_of(tiles.begin(), tiles.end(), [&](const auto &tile) {
+                return tile["row"].asInt() == tiles[0]["row"];
+              });
+          bool sameCol =
+              std::all_of(tiles.begin(), tiles.end(), [&](const auto &tile) {
+                return tile["col"].asInt() == tiles[0]["col"];
+              });
           if (!sameRow && !sameCol)
             return false;
 
           if (sameRow) {
             std::set<int> cols;
             for (const auto &tile : tiles) {
-                cols.insert(tile["col"].asInt());
+              cols.insert(tile["col"].asInt());
             }
             for (const auto &tile : board) {
-                cols.insert(tile["col"].asInt());
+              cols.insert(tile["col"].asInt());
             }
             int minCol = 20, maxCol = -1;
             for (const auto &tile : tiles) {
@@ -193,10 +219,10 @@ void PuzzleController::validateMove(
           } else if (sameCol) {
             std::set<int> rows;
             for (const auto &tile : tiles) {
-                rows.insert(tile["row"].asInt());
+              rows.insert(tile["row"].asInt());
             }
             for (const auto &tile : board) {
-                rows.insert(tile["row"].asInt());
+              rows.insert(tile["row"].asInt());
             }
             int minRow = 20, maxRow = -1;
             for (const auto &tile : tiles) {
