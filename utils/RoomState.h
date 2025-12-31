@@ -23,4 +23,12 @@ struct RoomState {
   int score2 = 0;
   int passes = 0;
   int challengeId = -1;
+  trantor::TimerId activeTimerId = 0;
+  int p1Timeouts = 0;
+  int p2Timeouts = 0;
+  bool isP1Connected = true;
+  bool isP2Connected = true;
+
+  const double TURN_TIME_LIMIT = 45.0; // seconds
+  const double RECONNECT_TIME_LIMIT = 30.0; // seconds
 };

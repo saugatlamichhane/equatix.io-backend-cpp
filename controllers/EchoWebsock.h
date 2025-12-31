@@ -21,4 +21,11 @@ public:
 private:
   PubSubService<std::string> chatRooms_;
   std::unordered_map<std::string, RoomState> rooms;
+  void startTurnTimer(const std::string &roomName);
+  void broadcastState(const std::string &roomName);
+  void handleForfeit(const std::string &roomName, int winnerSide,
+                     const std::string &reason);
+  void stopTimer(const std::string &roomName);
+  void applyGameRewards(const std::string &winnerUid,
+                        const std::string &loserUid, bool isForfeit);
 };

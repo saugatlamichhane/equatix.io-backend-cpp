@@ -4,6 +4,7 @@
 #include "../utils/GameLogic.h"
 #include "../utils/RoomState.h"
 #include "../utils/ValidatorHelpers.h"
+#include "LiveStatsController.h"
 #include <algorithm>
 #include <drogon/HttpTypes.h>
 #include <drogon/PubSubService.h>
@@ -19,7 +20,6 @@
 #include <type_traits>
 #include <variant>
 #include <vector>
-#include "LiveStatsController.h"
 
 using namespace drogon::orm;
 
@@ -145,6 +145,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       } else {
         room.currentTurn = 2;
       }
+      startTurnTimer(s.chatRoomName_);
 
     } else if (msgType == "pass") {
       reset(room, playerTurn);
@@ -155,6 +156,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       } else {
         room.currentTurn = 2;
       }
+      startTurnTimer(s.chatRoomName_);
     } else if (msgType == "evaluate") {
       if (room.state_.empty()) {
         if (!touchesCenter(room.current_)) {
@@ -268,6 +270,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
             Json::writeString(Json::StreamWriterBuilder(), rackJson));
         room.currentTurn = 2;
       }
+      startTurnTimer(s.chatRoomName_);
       Json::StreamWriterBuilder wbuilder;
       std::string jsonStr = Json::writeString(wbuilder, response);
       chatRooms_.publish(s.chatRoomName_, jsonStr);
@@ -366,7 +369,6 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     auto win = checkEndGame(room);
     if (win) {
 
-      
       Json::Value winResponse;
       winResponse["type"] = "game_over";
       int winner = 0;
@@ -379,14 +381,13 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       auto clientPtr = drogon::app().getDbClient();
 
       if (room.challengeId != -1) {
-    clientPtr->execSqlAsync(
-        "UPDATE challenges SET status='completed', winner=$1, completed_at = now() WHERE id=$2",
-        [](const Result &){ LOG_INFO << "Challenge updated"; },
-        [](const DrogonDbException &e){ LOG_ERROR << e.base().what(); },
-        winner == 1 ? room.player1Uid : room.player2Uid,
-        room.challengeId
-    );
-}
+        clientPtr->execSqlAsync(
+            "UPDATE challenges SET status='completed', winner=$1, completed_at "
+            "= now() WHERE id=$2",
+            [](const Result &) { LOG_INFO << "Challenge updated"; },
+            [](const DrogonDbException &e) { LOG_ERROR << e.base().what(); },
+            winner == 1 ? room.player1Uid : room.player2Uid, room.challengeId);
+      }
 
       winResponse["winner"] = winner;
       winResponse["score1"] = room.score1;
@@ -449,27 +450,31 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                     newLoserElo, loserUid);
 
                 clientPtr->execSqlAsync(
-                  "UPDATE stats SET current_win_streak = current_win_streak + 1, best_win_streak = GREATEST(best_win_streak, current_win_Streak + 1), best_elo = GREATEST(best_elo, $2) WHERE uid = $1",
-                  [winnerUid] (const drogon::orm::Result&) {
-                    LOG_INFO << "Updated winner streaks + best_elo: " << winnerUid;
-
-                  }, 
-                  [](const DrogonDbException& e) {
-                    LOG_ERROR << "Failed to update winner stats: " << e.base().what();
-                  }, winnerUid, newWinnerElo
-                );
+                    "UPDATE stats SET current_win_streak = current_win_streak "
+                    "+ 1, best_win_streak = GREATEST(best_win_streak, "
+                    "current_win_Streak + 1), best_elo = GREATEST(best_elo, "
+                    "$2) WHERE uid = $1",
+                    [winnerUid](const drogon::orm::Result &) {
+                      LOG_INFO << "Updated winner streaks + best_elo: "
+                               << winnerUid;
+                    },
+                    [](const DrogonDbException &e) {
+                      LOG_ERROR << "Failed to update winner stats: "
+                                << e.base().what();
+                    },
+                    winnerUid, newWinnerElo);
 
                 clientPtr->execSqlAsync(
-                  "UPDATE stats SET current_win_streak = 0, best_elo = GREATEST(best_elo, $2) WHERE uid = $1",
-                  [loserUid] (const drogon::orm::Result&) {
-                    LOG_INFO << "Updated loser stats: " << loserUid;
-
-                  }, 
-                  [](const DrogonDbException& e) {
-                    LOG_ERROR << "Failed to update loser stats: " << e.base().what();
-                  }, loserUid, newLoserElo
-                );
-
+                    "UPDATE stats SET current_win_streak = 0, best_elo = "
+                    "GREATEST(best_elo, $2) WHERE uid = $1",
+                    [loserUid](const drogon::orm::Result &) {
+                      LOG_INFO << "Updated loser stats: " << loserUid;
+                    },
+                    [](const DrogonDbException &e) {
+                      LOG_ERROR << "Failed to update loser stats: "
+                                << e.base().what();
+                    },
+                    loserUid, newLoserElo);
               }
             },
             [](const DrogonDbException &e) {
@@ -481,13 +486,13 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         // Draw case
         auto clientPtr = drogon::app().getDbClient();
         if (room.challengeId != -1) {
-    clientPtr->execSqlAsync(
-        "UPDATE challenges SET status='completed', winner=NULL, completed_at=now() WHERE id=$2",
-        [](const Result &){ LOG_INFO << "Challenge updated"; },
-        [](const DrogonDbException &e){ LOG_ERROR << e.base().what(); },
-        room.challengeId
-    );
-}
+          clientPtr->execSqlAsync(
+              "UPDATE challenges SET status='completed', winner=NULL, "
+              "completed_at=now() WHERE id=$2",
+              [](const Result &) { LOG_INFO << "Challenge updated"; },
+              [](const DrogonDbException &e) { LOG_ERROR << e.base().what(); },
+              room.challengeId);
+        }
 
         clientPtr->execSqlAsync(
             "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
@@ -520,28 +525,29 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                     [](const drogon::orm::Result &) {},
                     [](const DrogonDbException &) {}, newElo2, uid2);
 
-                  clientPtr->execSqlAsync(
-                  "UPDATE stats SET current_win_streak = 0, best_elo = GREATEST(best_elo, $2) WHERE uid = $1",
-                  [uid1] (const drogon::orm::Result&) {
-                    LOG_INFO << "Updated p1 stats(draw): " << uid1;
+                clientPtr->execSqlAsync(
+                    "UPDATE stats SET current_win_streak = 0, best_elo = "
+                    "GREATEST(best_elo, $2) WHERE uid = $1",
+                    [uid1](const drogon::orm::Result &) {
+                      LOG_INFO << "Updated p1 stats(draw): " << uid1;
+                    },
+                    [](const DrogonDbException &e) {
+                      LOG_ERROR << "Failed to update p1 stats(draw): "
+                                << e.base().what();
+                    },
+                    uid1, newElo1);
 
-                  }, 
-                  [](const DrogonDbException& e) {
-                    LOG_ERROR << "Failed to update p1 stats(draw): " << e.base().what();
-                  }, uid1, newElo1
-                );
-
-                  clientPtr->execSqlAsync(
-                  "UPDATE stats SET current_win_streak = 0, best_elo = GREATEST(best_elo, $2) WHERE uid = $1",
-                  [uid2] (const drogon::orm::Result&) {
-                    LOG_INFO << "Updated p2 stats(draw): " << uid2;
-
-                  }, 
-                  [](const DrogonDbException& e) {
-                    LOG_ERROR << "Failed to update p2 stats(draw): " << e.base().what();
-                  }, uid2, newElo2
-                );
-
+                clientPtr->execSqlAsync(
+                    "UPDATE stats SET current_win_streak = 0, best_elo = "
+                    "GREATEST(best_elo, $2) WHERE uid = $1",
+                    [uid2](const drogon::orm::Result &) {
+                      LOG_INFO << "Updated p2 stats(draw): " << uid2;
+                    },
+                    [](const DrogonDbException &e) {
+                      LOG_ERROR << "Failed to update p2 stats(draw): "
+                                << e.base().what();
+                    },
+                    uid2, newElo2);
               }
             },
             [](const DrogonDbException &e) {
@@ -629,6 +635,9 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
         Json::writeString(Json::StreamWriterBuilder(), opp2));
     room.player2Conn->send(
         Json::writeString(Json::StreamWriterBuilder(), opp1));
+
+    room.currentTurn = 1;
+    startTurnTimer(s.chatRoomName_);
   } else {
 
     init["error"] = "2 Players already connected";
@@ -664,16 +673,154 @@ void EchoWebsock::handleConnectionClosed(
 
   // Clear the room connection to allow new players to join
   auto &room = rooms[s.chatRoomName_];
-
+  int winnerSide = 0;
   // Check if this was player1 or player2
   if (room.player1Conn == wsConnPtr) {
     room.player1Conn = nullptr;
+    winnerSide = 2;
   } else if (room.player2Conn == wsConnPtr) {
     room.player2Conn = nullptr;
+    winnerSide = 1;
+  }
+
+  if (winnerSide != 0 && !room.player1Uid.empty() && !room.player2Uid.empty()) {
+    handleForfeit(s.chatRoomName_, winnerSide, "opponent disconnected");
   }
 
   // If both players have disconnected, reset the entire room
   if (room.player1Conn == nullptr && room.player2Conn == nullptr) {
-    room = RoomState{}; // Reset to fresh state
+    rooms.erase(s.chatRoomName_);
+    LOG_DEBUG << "Room " << s.chatRoomName_ << " has been cleared.";
   }
+}
+
+void EchoWebsock::startTurnTimer(const std::string &roomName) {
+  auto &room = rooms[roomName];
+  auto loop = drogon::app().getLoop();
+  if (room.activeTimerId != 0) {
+    loop->invalidateTimer(room.activeTimerId);
+  }
+  room.activeTimerId = loop->runAfter(room.TURN_TIME_LIMIT, [this, roomName]() {
+    auto &r = rooms[roomName];
+    int current = r.currentTurn;
+
+    int &timeoutCount = (current == 1) ? r.p1Timeouts : r.p2Timeouts;
+    timeoutCount++;
+
+    if (timeoutCount >= 2) {
+      handleForfeit(roomName, (current == 1) ? 2 : 1,
+                    "two timeouts - auto forfeit");
+    } else {
+      r.currentTurn = current == 1 ? 2 : 1;
+      broadcastState(roomName);
+      startTurnTimer(roomName);
+    }
+  });
+}
+
+void EchoWebsock::broadcastState(const std::string &roomName) {
+  auto &room = rooms[roomName];
+  Json::Value response;
+
+  response["type"] = "state";
+  response["turn"] = room.currentTurn;
+  response["player1Score"] = room.score1;
+  response["player2Score"] = room.score2;
+  response["p1Timeouts"] = room.p1Timeouts;
+  response["p2Timeouts"] = room.p2Timeouts;
+
+  Json::Value tiles(Json::arrayValue);
+  for (const auto &tile : room.state_) {
+    tiles.append(tile);
+  }
+  response["tiles"] = tiles;
+
+  std::string jsonStr =
+      Json::writeString(Json::StreamWriterBuilder(), response);
+  chatRooms_.publish(roomName, jsonStr);
+}
+
+void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
+                                const std::string &reason) {
+  auto &room = rooms[roomName];
+  stopTimer(roomName);
+  std::string winnerUid = (winnerSide == 1) ? room.player1Uid : room.player2Uid;
+  std::string loserUid = (winnerSide == 1) ? room.player2Uid : room.player1Uid;
+
+  Json::Value ovr;
+  ovr["type"] = "game_over";
+  ovr["winner"] = winnerSide;
+  ovr["reason"] = reason;
+  chatRooms_.publish(roomName,
+                     Json::writeString(Json::StreamWriterBuilder(), ovr));
+
+  auto db = drogon::app().getDbClient();
+  db->execSqlAsync(
+      "UPDATE challenges SET status='forfeit', winner=$1 WHERE id=$2",
+      [this, winnerUid, loserUid](const Result &r) {
+        this->applyGameRewards(winnerUid, loserUid, true);
+      },
+      [](const DrogonDbException &e) {
+        LOG_ERROR << "Failed to update challenge for forfeit: "
+                  << e.base().what();
+      },
+      winnerUid, room.challengeId);
+}
+
+void EchoWebsock::stopTimer(const std::string &roomName) {
+  auto it = rooms.find(roomName);
+  if (it != rooms.end()) {
+    auto &room = it->second;
+    if (room.activeTimerId != 0) {
+      drogon::app().getLoop()->invalidateTimer(room.activeTimerId);
+      room.activeTimerId = 0;
+      LOG_DEBUG << "Timer stopped for room: " << roomName;
+    }
+  }
+}
+
+void EchoWebsock::applyGameRewards(const std::string &winnerUid,
+                                   const std::string &loserUid,
+                                   bool isForfeit) {
+  auto db = drogon::app().getDbClient();
+
+  // Fetch ELO for calculation
+  db->execSqlAsync(
+      "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
+      [db, winnerUid, loserUid](const Result &r) {
+        if (r.size() != 2)
+          return;
+
+        double wElo = 1000.0, lElo = 1000.0;
+        for (auto const &row : r) {
+          if (row["uid"].as<std::string>() == winnerUid)
+            wElo = row["elo"].as<double>();
+          else
+            lElo = row["elo"].as<double>();
+        }
+
+        // ELO Logic
+        const double K = 32.0;
+        double expectedWinner = 1.0 / (1.0 + pow(10.0, (lElo - wElo) / 400.0));
+        double eloChange = K * (1.0 - expectedWinner);
+
+        // Update Winner: wins, gamesplayed, elo
+        db->execSqlAsync(
+            "UPDATE users SET elo = elo + $1, wins = wins + 1, gamesplayed = "
+            "gamesplayed + 1 WHERE uid = $2",
+            [](const Result &) {}, [](const DrogonDbException &e) {}, eloChange, winnerUid);
+
+        // Update Loser: losses, gamesplayed, elo
+        db->execSqlAsync(
+            "UPDATE users SET elo = GREATEST(0, elo - $1), losses = losses + "
+            "1, gamesplayed = gamesplayed + 1 WHERE uid = $2",
+            [](const Result &) {}, [](const DrogonDbException &e) {}, eloChange, loserUid);
+
+        LOG_INFO << "ELO updated: Winner +" << eloChange << ", Loser -"
+                 << eloChange;
+      },
+      [](const DrogonDbException &e) {
+        LOG_ERROR << "Reward fetch failed: " << e.base().what();
+      },
+      winnerUid, loserUid);
 }
