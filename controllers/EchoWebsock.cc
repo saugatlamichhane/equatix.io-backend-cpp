@@ -756,7 +756,7 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
 
   auto db = drogon::app().getDbClient();
   db->execSqlAsync(
-      "UPDATE challenges SET status='forfeit', winner=$1 WHERE id=$2",
+      "UPDATE challenges SET status='forfeit' WHERE id=$2",
       [this, winnerUid, loserUid](const Result &r) {
         this->applyGameRewards(winnerUid, loserUid, true);
       },
@@ -764,7 +764,7 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
         LOG_ERROR << "Failed to update challenge for forfeit: "
                   << e.base().what();
       },
-      winnerUid, room.challengeId);
+      room.challengeId);
 }
 
 void EchoWebsock::stopTimer(const std::string &roomName) {
