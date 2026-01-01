@@ -488,7 +488,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         if (room.challengeId != -1) {
           clientPtr->execSqlAsync(
               "UPDATE challenges SET status='completed', winner=NULL, "
-              "completed_at=now() WHERE id=$2",
+              "completed_at=now() WHERE id=$1",
               [](const Result &) { LOG_INFO << "Challenge updated"; },
               [](const DrogonDbException &e) { LOG_ERROR << e.base().what(); },
               room.challengeId);
@@ -569,7 +569,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   auto params = req->getParameters();
 
   auto &room = rooms[s.chatRoomName_];
-  room.challengeId = std::stoi(req->getParameter("room_name").substr(10));
+  room.challengeId = std::stoi(req->getParameter("room_name").substr(9));
 
   Json::Value init;
   init["type"] = "init";
