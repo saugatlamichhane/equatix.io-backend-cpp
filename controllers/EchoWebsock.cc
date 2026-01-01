@@ -746,7 +746,7 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
   stopTimer(roomName);
   std::string winnerUid = (winnerSide == 1) ? room.player1Uid : room.player2Uid;
   std::string loserUid = (winnerSide == 1) ? room.player2Uid : room.player1Uid;
-
+  int cId = room.challengeId;
   Json::Value ovr;
   ovr["type"] = "game_over";
   ovr["winner"] = winnerSide;
@@ -755,10 +755,12 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
                      Json::writeString(Json::StreamWriterBuilder(), ovr));
 
   auto db = drogon::app().getDbClient();
+  LOG_INFO << "Forfeit triggered - Room: " << roomName << " | ChallengeID: " << cId << " | Winner: " << winnerUid;
   db->execSqlAsync(
       "UPDATE challenges SET status='forfeit' WHERE id=$1",
       [this, winnerUid, loserUid](const Result &r) {
         this->applyGameRewards(winnerUid, loserUid, true);
+        LOG_INFO << "Forfeit DB Callback - Rows affected: " << r.affectedRows();
       },
       [](const DrogonDbException &e) {
         LOG_ERROR << "Failed to update challenge for forfeit: "
