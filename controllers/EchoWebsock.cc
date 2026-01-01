@@ -686,12 +686,6 @@ void EchoWebsock::handleConnectionClosed(
   if (winnerSide != 0 && !room.player1Uid.empty() && !room.player2Uid.empty()) {
     handleForfeit(s.chatRoomName_, winnerSide, "opponent disconnected");
   }
-
-  // If both players have disconnected, reset the entire room
-  if (room.player1Conn == nullptr && room.player2Conn == nullptr) {
-    rooms.erase(s.chatRoomName_);
-    LOG_DEBUG << "Room " << s.chatRoomName_ << " has been cleared.";
-  }
 }
 
 void EchoWebsock::startTurnTimer(const std::string &roomName) {
