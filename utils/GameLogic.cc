@@ -4,6 +4,12 @@
 #include <algorithm>
 #include <random>
 
+#include "GameLogic.h"
+#include "Board.h"
+#include "ValidatorHelpers.h"
+#include <algorithm>
+#include <functional>
+
 void reset(RoomState &room, int playerTurn) {
   std::vector<std::string> &playerRack =
       (playerTurn == 1) ? room.player1Rack : room.player2Rack;
@@ -50,3 +56,112 @@ std::vector<std::string> drawTiles(std::vector<std::string> &tileBag, int n) {
   tileBag.erase(tileBag.end() - n, tileBag.end());
   return drawnTiles;
 }
+
+
+
+
+namespace GameLogic {
+
+bool isAdjacentToTile(const std::vector<Json::Value>& board, int r, int c) {
+    for (const auto& tile : board) {
+        int tr = tile["row"].asInt();
+        int tc = tile["col"].asInt();
+        if ((abs(tr - r) == 1 && tc == c) || (abs(tc - c) == 1 && tr == r)) return true;
+    }
+    return false;
+}
+
+std::vector<Json::Value> convertToTiles(const std::vector<std::string>& expr, int r, int c, bool horizontal) {
+    std::vector<Json::Value> tiles;
+    for (int i = 0; i < expr.size(); ++i) {
+        Json::Value t;
+        t["value"] = expr[i];
+        t["row"] = horizontal ? r : r + i;
+        t["col"] = horizontal ? c + i : c;
+        tiles.push_back(t);
+    }
+    return tiles;
+}
+
+BotMove searchFirstMove(const std::vector<std::string>& rack) {
+    // The first move must cross (8,8). We try starting at (8, c) where c <= 8
+    for (int c = 4; c <= 8; ++c) {
+        BotMove move = findHighestScoreAtPos(8, c, true, {}, rack);
+        if (move.isValid) return move;
+    }
+    return BotMove{false};
+}
+
+BotMove findBestMove(const std::vector<Json::Value>& boardState, const std::vector<std::string>& rack) {
+    if (boardState.empty()) return searchFirstMove(rack);
+
+    BotMove bestMove;
+    bestMove.score = -1;
+
+    for (int r = 0; r < 15; ++r) {
+        for (int c = 0; c < 15; ++c) {
+            if (isOccupied(boardState, {}, r, c)) continue;
+            if (!isAdjacentToTile(boardState, r, c)) continue;
+
+            for (bool horizontal : {true, false}) {
+                BotMove current = findHighestScoreAtPos(r, c, horizontal, boardState, rack);
+                if (current.isValid && current.score > bestMove.score) {
+                    bestMove = current;
+                }
+            }
+        }
+    }
+    return bestMove.isValid ? bestMove : BotMove{false};
+}
+
+BotMove findHighestScoreAtPos(int r, int c, bool horizontal, const std::vector<Json::Value>& board, const std::vector<std::string>& rack) {
+    BotMove best;
+    std::vector<std::string> currentExpr;
+    std::vector<bool> usedInRack(rack.size(), false);
+
+    std::function<void(int, int)> backtrack = [&](int currR, int currC) {
+        if (currR < 0 || currR >= 15 || currC < 0 || currC >= 15) return;
+        if (currentExpr.size() > 7) return; // Performance cap
+
+        std::string fullStr = "";
+        for (const auto& s : currentExpr) fullStr += s;
+
+        // Validation logic
+        if (fullStr.find('=') != std::string::npos && fullStr.back() != '=' && !ispunct(fullStr.back())) {
+            auto parts = splitEquation(fullStr);
+            if (parts.size() >= 2) {
+                try {
+                    double target = evaluateExpression(parts[0]);
+                    bool valid = true;
+                    for (auto& p : parts) if (evaluateExpression(p) != target) valid = false;
+
+                    if (valid) {
+                        auto placed = convertToTiles(currentExpr, r, c, horizontal);
+                        // Simplified scoring (can be expanded with board multipliers)
+                        int currentScore = fullStr.length(); 
+                        if (currentScore > best.score) {
+                            best.isValid = true;
+                            best.score = currentScore;
+                            best.placedTiles = placed;
+                            best.usedValues = currentExpr;
+                        }
+                    }
+                } catch (...) {}
+            }
+        }
+
+        for (size_t i = 0; i < rack.size(); ++i) {
+            if (!usedInRack[i]) {
+                usedInRack[i] = true;
+                currentExpr.push_back(rack[i]);
+                horizontal ? backtrack(currR, currC + 1) : backtrack(currR + 1, currC);
+                currentExpr.pop_back();
+                usedInRack[i] = false;
+            }
+        }
+    };
+
+    backtrack(r, c);
+    return best;
+}
+} // namespace GameLogic

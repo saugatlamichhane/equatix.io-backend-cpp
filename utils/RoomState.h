@@ -28,7 +28,7 @@ struct RoomState {
   int p2Timeouts = 0;
   bool isP1Connected = true;
   bool isP2Connected = true;
-
+  bool isBotGame = false;
   const double TURN_TIME_LIMIT = 45.0; // seconds
   const double RECONNECT_TIME_LIMIT = 30.0; // seconds
 };

@@ -4,6 +4,7 @@
 #include "../utils/GameLogic.h"
 #include "../utils/RoomState.h"
 #include "../utils/ValidatorHelpers.h"
+#include "../utils/Subscriber.h"
 #include "LiveStatsController.h"
 #include <algorithm>
 #include <drogon/HttpTypes.h>
@@ -22,11 +23,6 @@
 #include <vector>
 
 using namespace drogon::orm;
-
-struct Subscriber {
-  std::string chatRoomName_;
-  drogon::SubscriberID id_;
-};
 
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                                    std::string &&message,
@@ -146,6 +142,9 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         room.currentTurn = 2;
       }
       startTurnTimer(s.chatRoomName_);
+      if(room.isBotGame && room.currentTurn == 2) {
+        executeBotMove(s.chatRoomName_);
+      }
 
     } else if (msgType == "pass") {
       reset(room, playerTurn);
@@ -157,6 +156,9 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         room.currentTurn = 2;
       }
       startTurnTimer(s.chatRoomName_);
+        if(room.isBotGame && room.currentTurn == 2) {
+        executeBotMove(s.chatRoomName_);
+      }
     } else if (msgType == "evaluate") {
       if (room.state_.empty()) {
         if (!touchesCenter(room.current_)) {
@@ -274,6 +276,10 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       Json::StreamWriterBuilder wbuilder;
       std::string jsonStr = Json::writeString(wbuilder, response);
       chatRooms_.publish(s.chatRoomName_, jsonStr);
+
+      if(room.isBotGame && room.currentTurn == 2) {
+        executeBotMove(s.chatRoomName_);
+      }
 
     } else if (msgType == "placement") {
       Json::Value payload = root["payload"];
@@ -491,8 +497,19 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
   auto params = req->getParameters();
 
   auto &room = rooms[s.chatRoomName_];
-  room.challengeId = std::stoi(req->getParameter("room_name").substr(9));
+  room.isBotGame = req->getParameter("isBot") == "1";
+  
+  if(!room.isBotGame && s.chatRoomName_.find("challenge") != std::string::npos) {
+    try {
+      room.challengeId = std::stoi(req->getParameter("room_name").substr(9));
 
+    } catch(...) {
+      room.challengeId = -1;
+      LOG_WARN << "Invalid challenge room name: " << s.chatRoomName_;
+    }
+  } else {
+    room.challengeId = -1;
+  }
   Json::Value init;
   init["type"] = "init";
   init["turn"] = room.currentTurn;
@@ -630,6 +647,10 @@ void EchoWebsock::startTurnTimer(const std::string &roomName) {
       r.currentTurn = current == 1 ? 2 : 1;
       broadcastState(roomName);
       startTurnTimer(roomName);
+      if(r.isBotGame && r.currentTurn == 2) {
+        LOG_INFO << "Bot's turn after timeout. Executing bot move for " << roomName;
+        executeBotMove(roomName);
+      }
     }
   });
 }
@@ -670,6 +691,10 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
   chatRooms_.publish(roomName,
                      Json::writeString(Json::StreamWriterBuilder(), ovr));
 
+  if(room.isBotGame) {
+    LOG_INFO << "Bot game - db update ignored.";
+    return;
+  }
   auto db = drogon::app().getDbClient();
   LOG_INFO << "Forfeit triggered - Room: " << roomName << " | ChallengeID: " << cId << " | Winner: " << winnerUid;
   db->execSqlAsync(
@@ -698,7 +723,12 @@ void EchoWebsock::stopTimer(const std::string &roomName) {
 }
 
 void EchoWebsock::applyGameRewards(const std::string &winnerUid, const std::string &loserUid, bool isForfeit) {
-    auto db = drogon::app().getDbClient();
+  if(winnerUid == "BOT_AI" || loserUid == "BOT_AI") {
+    LOG_INFO << "Bot game - skipping Elo and stats update.";
+    return;
+  }
+  
+  auto db = drogon::app().getDbClient();
 
     db->execSqlAsync(
         "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
@@ -741,4 +771,47 @@ void EchoWebsock::applyGameRewards(const std::string &winnerUid, const std::stri
         [](const DrogonDbException &e) { LOG_ERROR << e.base().what(); },
         winnerUid, loserUid
     );
+}
+
+void EchoWebsock::executeBotMove(const std::string &roomName) {
+    auto it = rooms.find(roomName);
+    if (it == rooms.end()) return;
+    auto &room = it->second;
+
+    // 1. Get the move from your logic engine
+    // findBestMove needs to be defined in GameLogic.h/cc
+    auto botMove = GameLogic::findBestMove(room.state_, room.player2Rack);
+
+    if (botMove.isValid) {
+        // Apply tiles to board
+        for (const auto &tile : botMove.placedTiles) {
+            room.state_.push_back(tile);
+        }
+        room.score2 += botMove.score;
+        room.passes = 0; // Reset pass counter on successful move
+
+        // Remove tiles from Bot Rack and draw new ones
+        for (const auto &val : botMove.usedValues) {
+            auto rackIt = std::find(room.player2Rack.begin(), room.player2Rack.end(), val);
+            if (rackIt != room.player2Rack.end()) room.player2Rack.erase(rackIt);
+        }
+        auto newTiles = drawTiles(room.tileBag, 10 - room.player2Rack.size());
+        room.player2Rack.insert(room.player2Rack.end(), newTiles.begin(), newTiles.end());
+    } else {
+        // Bot couldn't find a move, it passes
+        room.passes++;
+        LOG_INFO << "Bot could not find a valid move and passed.";
+    }
+
+    // 2. Hand turn back to human
+    room.currentTurn = 1;
+    
+    // 3. Update all clients and restart human's timer
+    broadcastState(roomName);
+    startTurnTimer(roomName);
+
+    // 4. Check if bot move ended the game
+    if (checkEndGame(room)) {
+        // Handle game over (Multiplayer check is already inside your win block)
+    }
 }
