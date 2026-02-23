@@ -1,6 +1,23 @@
 #include <drogon/drogon.h>
 #include <filters/FirebaseAuthFilter.h>
 
+void setUpDatabase() {
+    std::string host = std::getenv("DB_HOST");
+    std::string port = std::getenv("DB_PORT");
+    std::string dbname = std::getenv("DB_NAME");
+    std::string user = std::getenv("DB_USER");
+    std::string passwd = std::getenv("DB_PASSWD");
+    drogon::app().createDbClient(
+        "postgresql",
+        host,
+        std::stoi(port),
+        dbname,
+        user,
+        passwd,
+        1// timeout in milliseconds
+    );
+}
+
 void setupCors()
 {
     // Register sync advice to handle CORS preflight (OPTIONS) requests
@@ -86,6 +103,7 @@ int main() {
     drogon::app().loadConfigFile("config.json");
     //drogon::app().loadConfigFile("../config.yaml");
     //Run HTTP framework,the method will block in the internal event loop
+    setUpDatabase();
     drogon::app().run();
     return 0;
 }
