@@ -28,18 +28,18 @@ Equatix.io is a high-performance, real-time strategy game backend built with C++
 
 ### Building with Docker
 
-The easiest way to build and run the Echo server is using the provided Dockerfile:
+The easiest way to build and run the backend server is using the provided Dockerfile:
 
 1. **Build the Image**:
 ```bash
-docker build -t echo-server .
+docker build -t equatix-server .
 
 ```
 
 
 2. **Run the Container**:
 ```bash
-docker run -p 5555:5555 echo-server
+docker run -p 5555:5555 eqautix-server
 
 ```
 
