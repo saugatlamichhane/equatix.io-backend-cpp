@@ -66,7 +66,7 @@ make
 
 3. **Run**:
 ```bash
-./echo
+./equatix-server
 
 ```
 
