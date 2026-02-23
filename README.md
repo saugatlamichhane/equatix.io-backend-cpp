@@ -1,6 +1,6 @@
-# Echo: Online Multiplayer Strategy Game
+# Equatix.io: Online Multiplayer Strategy Game
 
-Echo is a high-performance, real-time strategy game backend built with C++ and the Drogon framework. It is designed to handle online multiplayer interactions, competitive matchmaking, and automated game logic.
+Equatix.io is a high-performance, real-time strategy game backend built with C++ and the Drogon framework. It is designed to handle online multiplayer interactions, competitive matchmaking, and automated game logic.
 
 ## Core Features
 
