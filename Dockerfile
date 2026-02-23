@@ -65,11 +65,11 @@ RUN apt-get update && apt-get install -y \
 
 # Copy compiled binary from builder
 WORKDIR /app
-COPY --from=builder /app/build/echo /app/echo
+COPY --from=builder /app/build/equatix-server /app/equatix-server
 COPY --from=builder /app/config.json /app/config.json
 
 # Expose Drogon port
 EXPOSE 5555
 
 # Run
-CMD ["./echo"]
+CMD ["./equatix-server"]
