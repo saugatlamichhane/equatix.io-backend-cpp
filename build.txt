@@ -1,2 +1,6 @@
-sudo docker build -t echo .
-sudo docker run -p 5555:5555 echo
+sudo docker build -t equatix-server .
+sudo docker run -p 5555:5555 --env-file .env equatix-server
+
+
+test APIs
+curl -H "Authorization: Bearer YOUR_TOKEN_HERE" http://localhost:5555/login

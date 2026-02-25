@@ -1,23 +1,19 @@
-/**
- *
- *  FirebaseAuthFilter.h
- *
- */
-
+// equatix.io-backend-cpp/filters/FirebaseAuthFilter.h
 #pragma once
 
 #include <drogon/HttpFilter.h>
-using namespace drogon;
 
-static std::unordered_map<std::string, std::string> firebaseKeys;
-static std::mutex keyMutex;
+class FirebaseAuthFilter : public drogon::HttpFilter<FirebaseAuthFilter>
+{
+  public:
+    FirebaseAuthFilter() {}
+    void doFilter(const drogon::HttpRequestPtr &req,
+                  drogon::FilterCallback &&fcb,
+                  drogon::FilterChainCallback &&fccb) override;
 
-std::string certToPubKey(const std::string &certPem);
-void fetchFirebaseKeys();
-
-class FirebaseAuthFilter : public HttpFilter<FirebaseAuthFilter> {
-public:
-  FirebaseAuthFilter() {}
-  void doFilter(const HttpRequestPtr &req, FilterCallback &&fcb,
-                FilterChainCallback &&fccb) override;
+    // Static method to trigger background public key refresh
+    static void refreshKeys();
 };
+
+// Global function declaration for use in main.cc
+void fetchFirebaseKeys();
