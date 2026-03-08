@@ -84,12 +84,46 @@ std::vector<Json::Value> convertToTiles(const std::vector<std::string>& expr, in
 }
 
 BotMove searchFirstMove(const std::vector<std::string>& rack) {
-    // The first move must cross (8,8). We try starting at (8, c) where c <= 8
-    for (int c = 4; c <= 8; ++c) {
-        BotMove move = findHighestScoreAtPos(8, c, true, {}, rack);
-        if (move.isValid) return move;
+    BotMove bestMove{false};
+    bestMove.score = -1;
+
+    // Standard Scrabble rack size is 7
+    const int maxWordLength = 10; 
+    const int center = 8;
+
+    // Check both Horizontal (true) and Vertical (false)
+    for (bool isHorizontal : {true, false}) {
+        
+        // A word 'touches' the center if it starts at (center - length + 1) up to (center)
+        // We check starting positions from (center - 6) up to (center)
+        for (int i = std::max(0, center - maxWordLength + 1); i <= center; ++i) {
+            
+            // If horizontal, row is fixed at 8, column varies.
+            // If vertical, column is fixed at 8, row varies.
+            int startRow = isHorizontal ? center : i;
+            int startCol = isHorizontal ? i : center;
+
+            // Call your existing score function
+            BotMove move = findHighestScoreAtPos(startRow, startCol, isHorizontal, {}, rack);
+
+            if (move.isValid) {
+                // Verification: Does this specific move actually cover (8,8)?
+                // We check if startPos + number of tiles >= 8
+                int wordLength = move.usedValues.size();
+                int endPos = (isHorizontal ? startCol : startRow) + wordLength - 1;
+
+                if (endPos >= center) {
+                    // Track the highest scoring valid move
+                    if (move.score > bestMove.score) {
+                        bestMove = move;
+                    }
+                }
+            }
+        }
     }
-    return BotMove{false};
+
+    // If no valid move was found, bestMove.isValid remains false
+    return bestMove;
 }
 
 BotMove findBestMove(const std::vector<Json::Value>& boardState, const std::vector<std::string>& rack) {
