@@ -88,7 +88,7 @@ BotMove searchFirstMove(const std::vector<std::string>& rack) {
     bestMove.score = -1;
 
     // Standard Scrabble rack size is 7
-    const int maxWordLength = 10; 
+    const int maxWordLength = 7; 
     const int center = 8;
 
     // Check both Horizontal (true) and Vertical (false)

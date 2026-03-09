@@ -251,7 +251,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       room.passes = 0;
       std::vector<std::string> &playerRack =
           (playerTurn == 1) ? room.player1Rack : room.player2Rack;
-      auto newTiles = drawTiles(room.tileBag, 10 - playerRack.size());
+      auto newTiles = drawTiles(room.tileBag, 7 - playerRack.size());
       for (auto &tile : newTiles) {
         playerRack.push_back(tile);
       }
@@ -521,7 +521,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
     room.player1Conn = wsConnPtr;
     room.player1Uid = uid;
     init["rack"] = Json::Value(Json::arrayValue);
-    auto rack = drawTiles(room.tileBag, 10);
+    auto rack = drawTiles(room.tileBag, 7);
     room.player1Rack = rack;
     for (auto tile : rack) {
       init["rack"].append(tile);
@@ -540,7 +540,7 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
     room.player2Conn = wsConnPtr;
     room.player2Uid = uid;
     init["rack"] = Json::Value(Json::arrayValue);
-    auto rack = drawTiles(room.tileBag, 10);
+    auto rack = drawTiles(room.tileBag, 7);
     room.player2Rack = rack;
     for (auto tile : rack) {
       init["rack"].append(tile);
@@ -795,7 +795,7 @@ void EchoWebsock::executeBotMove(const std::string &roomName) {
             auto rackIt = std::find(room.player2Rack.begin(), room.player2Rack.end(), val);
             if (rackIt != room.player2Rack.end()) room.player2Rack.erase(rackIt);
         }
-        auto newTiles = drawTiles(room.tileBag, 10 - room.player2Rack.size());
+        auto newTiles = drawTiles(room.tileBag, 7 - room.player2Rack.size());
         room.player2Rack.insert(room.player2Rack.end(), newTiles.begin(), newTiles.end());
     } else {
         // Bot couldn't find a move, it passes
