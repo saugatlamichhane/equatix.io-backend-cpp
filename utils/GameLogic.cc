@@ -135,7 +135,6 @@ BotMove findBestMove(const std::vector<Json::Value>& boardState, const std::vect
     for (int r = 0; r < 15; ++r) {
         for (int c = 0; c < 15; ++c) {
             if (isOccupied(boardState, {}, r, c)) continue;
-            if (!isAdjacentToTile(boardState, r, c)) continue;
 
             for (bool horizontal : {true, false}) {
                 BotMove current = findHighestScoreAtPos(r, c, horizontal, boardState, rack);

@@ -529,6 +529,11 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
     init["sent"] = 1;
     auto result = clientPtr->execSqlSync(
         "SELECT name, photo, elo FROM users WHERE uid=$1", uid);
+    if (result.empty()) {
+        LOG_ERROR << "User not found in database: " << uid;
+        // Handle error - perhaps disconnect or send error message
+        return;
+    }
     std::string name = result[0]["name"].as<std::string>();
     std::string photo = result[0]["photo"].as<std::string>();
     double elo = result[0]["elo"].as<double>();
@@ -548,6 +553,11 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
     init["sent"] = 2;
     auto result = clientPtr->execSqlSync(
         "SELECT name, photo, elo FROM users WHERE uid=$1", uid);
+    if (result.empty()) {
+        LOG_ERROR << "User not found in database: " << uid;
+        // Handle error - perhaps disconnect or send error message
+        return;
+    }
     std::string name = result[0]["name"].as<std::string>();
     std::string photo = result[0]["photo"].as<std::string>();
     double elo = result[0]["elo"].as<double>();
@@ -560,6 +570,10 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
         "SELECT name, photo, elo FROM users WHERE uid=$1", room.player1Uid);
     auto r2 = clientPtr->execSqlSync(
         "SELECT name, photo, elo FROM users WHERE uid=$1", room.player2Uid);
+    if (r1.empty() || r2.empty()) {
+        LOG_ERROR << "One or both players not found in database";
+        return;
+    }
     opp1["type"] = "opponent_info";
     opp1["name"] = r1[0]["name"].as<std::string>();
     opp1["photo"] = r1[0]["photo"].as<std::string>();
