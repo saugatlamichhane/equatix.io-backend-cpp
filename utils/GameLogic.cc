@@ -132,8 +132,8 @@ BotMove findBestMove(const std::vector<Json::Value>& boardState, const std::vect
     BotMove bestMove;
     bestMove.score = -1;
 
-    for (int r = 0; r < 15; ++r) {
-        for (int c = 0; c < 15; ++c) {
+    for (int r = 1; r <= 15; ++r) {
+        for (int c = 1; c <= 15; ++c) {
             if (isOccupied(boardState, {}, r, c)) continue;
 
             for (bool horizontal : {true, false}) {

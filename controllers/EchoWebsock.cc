@@ -386,7 +386,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
 
       auto clientPtr = drogon::app().getDbClient();
 
-      if (room.challengeId != -1) {
+      if (room.challengeId != -1 && winner != 0) {
         clientPtr->execSqlAsync(
             "UPDATE challenges SET status='completed', winner=$1, completed_at "
             "= now() WHERE id=$2",
