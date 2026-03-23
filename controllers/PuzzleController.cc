@@ -108,7 +108,6 @@ void PuzzleController::listPuzzles(
         std::string query =
             "SELECT p.puzzle_id, p.difficulty, p.objective, p.created_at, "
             "       COALESCE(pp.solved, FALSE) AS solved, "
-            "       COALESCE(pp.attempts, 0) AS attempts, "
             "       pp.best_time "
             "FROM puzzles p "
             "LEFT JOIN puzzle_progress pp "
@@ -129,7 +128,6 @@ void PuzzleController::listPuzzles(
                 item["objective"] = row["objective"].as<std::string>();
                 item["solved"] = row["solved"].as<bool>();
                 item["created_at"] = row["created_at"].as<std::string>();
-                item["attempts"] = row["attempts"].as<int>();
                 if (!row["best_time"].isNull()) {
                   item["best_time"] = row["best_time"].as<int>();
                 } else {
@@ -176,7 +174,7 @@ void PuzzleController::getPuzzle(
 
   db->execSqlAsync(
       "SELECT puzzle_id, board_state, rack, objective, difficulty, "
-      "       created_at, created_by "
+      "       created_at "
       "FROM puzzles WHERE puzzle_id=$1",
       [callback, puzzleId](const Result &r) {
         if (r.empty()) {
@@ -211,7 +209,6 @@ void PuzzleController::getPuzzle(
         data["board"] = boardJson;
         data["rack"] = rackJson;
         data["created_at"] = r[0]["created_at"].as<std::string>();
-        data["created_by"] = r[0]["created_by"].as<std::string>();
 
         auto resp = HttpResponse::newHttpJsonResponse(
             PuzzleController::createSuccessResponse(data));
