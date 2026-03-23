@@ -43,7 +43,7 @@ void PuzzleController::listPuzzles(
   auto uidAttr = req->attributes()->get<std::string>("uid");
   if (uidAttr.empty()) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Not authenticated", "UNAUTHORIZED"));
+        PuzzleController::createErrorResponse("Not authenticated", "UNAUTHORIZED"));
     resp->setStatusCode(k401Unauthorized);
     callback(resp);
     return;
@@ -64,21 +64,14 @@ void PuzzleController::listPuzzles(
     offset = std::stoi(req->getParameter("offset"));
   }
 
-  // Build WHERE clause
+  // Build base WHERE clause
   std::string whereClause = "";
-  std::vector<std::string> params;
   
-  params.push_back(userId);  // $1 for user_id in JOIN
-  int paramCount = 1;
-
   if (!difficulty.empty() && difficulty != "all") {
-    whereClause += " AND p.difficulty = $" + std::to_string(++paramCount);
-    params.push_back(difficulty);
+    whereClause += " AND p.difficulty = '" + difficulty + "'";
   }
   if (!search.empty()) {
-    whereClause += " AND (p.objective ILIKE $" + std::to_string(++paramCount) +
-                   " OR p.puzzle_id::text ILIKE $" + std::to_string(paramCount) + ")";
-    params.push_back("%" + search + "%");
+    whereClause += " AND (p.objective ILIKE '%" + search + "%' OR p.puzzle_id::text ILIKE '%" + search + "%')";
   }
 
   // Build ORDER BY clause
@@ -104,7 +97,7 @@ void PuzzleController::listPuzzles(
   // Execute count query
   db->execSqlAsync(
       countQuery,
-      [db, userId, limit, offset, whereClause, orderClause, params, callback](
+      [db, userId, limit, offset, whereClause, orderClause, callback](
           const Result &countResult) {
         int total = 0;
         if (!countResult.empty()) {
@@ -121,13 +114,8 @@ void PuzzleController::listPuzzles(
             "LEFT JOIN puzzle_progress pp "
             "  ON pp.puzzle_id = p.puzzle_id AND pp.user_id = $1 "
             "WHERE 1=1 " +
-            whereClause + orderClause + " LIMIT $" +
-            std::to_string(params.size() + 1) + " OFFSET $" +
-            std::to_string(params.size() + 2);
-
-        std::vector<std::string> queryParams = params;
-        queryParams.push_back(std::to_string(limit));
-        queryParams.push_back(std::to_string(offset));
+            whereClause + orderClause + " LIMIT " +
+            std::to_string(limit) + " OFFSET " + std::to_string(offset);
 
         db->execSqlAsync(
             query,
@@ -162,20 +150,19 @@ void PuzzleController::listPuzzles(
             },
             [callback](const DrogonDbException &e) {
               auto resp = HttpResponse::newHttpJsonResponse(
-                  createErrorResponse(std::string(e.base().what()),
+                  PuzzleController::createErrorResponse(std::string(e.base().what()),
                                       "SERVER_ERROR"));
               resp->setStatusCode(k500InternalServerError);
               callback(resp);
             },
-            queryParams);
+            userId);
       },
       [callback](const DrogonDbException &e) {
         auto resp = HttpResponse::newHttpJsonResponse(
-            createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
+            PuzzleController::createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
         resp->setStatusCode(k500InternalServerError);
         callback(resp);
-      },
-      params);
+      });
 }
 
 // ============================================================================
@@ -194,7 +181,7 @@ void PuzzleController::getPuzzle(
       [callback, puzzleId](const Result &r) {
         if (r.empty()) {
           auto resp = HttpResponse::newHttpJsonResponse(
-              createErrorResponse("Puzzle not found", "NOT_FOUND"));
+              PuzzleController::createErrorResponse("Puzzle not found", "NOT_FOUND"));
           resp->setStatusCode(k404NotFound);
           callback(resp);
           return;
@@ -227,13 +214,13 @@ void PuzzleController::getPuzzle(
         data["created_by"] = r[0]["created_by"].as<std::string>();
 
         auto resp = HttpResponse::newHttpJsonResponse(
-            createSuccessResponse(data));
+            PuzzleController::createSuccessResponse(data));
         resp->setStatusCode(k200OK);
         callback(resp);
       },
       [callback](const DrogonDbException &e) {
         auto resp = HttpResponse::newHttpJsonResponse(
-            createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
+            PuzzleController::createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
         resp->setStatusCode(k500InternalServerError);
         callback(resp);
       },
@@ -254,7 +241,7 @@ void PuzzleController::validateMove(
   auto uidAttr = req->attributes()->get<std::string>("uid");
   if (uidAttr.empty()) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Not authenticated", "UNAUTHORIZED"));
+        PuzzleController::createErrorResponse("Not authenticated", "UNAUTHORIZED"));
     resp->setStatusCode(k401Unauthorized);
     callback(resp);
     return;
@@ -269,7 +256,7 @@ void PuzzleController::validateMove(
   std::string body{req->getBody()};
   if (!reader->parse(body.c_str(), body.c_str() + body.size(), &root, &errs)) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Invalid JSON: " + errs, "INVALID_DATA"));
+        PuzzleController::createErrorResponse("Invalid JSON: " + errs, "INVALID_DATA"));
     resp->setStatusCode(k400BadRequest);
     callback(resp);
     return;
@@ -277,7 +264,7 @@ void PuzzleController::validateMove(
 
   if (!root.isMember("puzzle_id") || !root.isMember("placed_tiles")) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Missing puzzle_id or placed_tiles", "INVALID_DATA"));
+        PuzzleController::createErrorResponse("Missing puzzle_id or placed_tiles", "INVALID_DATA"));
     resp->setStatusCode(k400BadRequest);
     callback(resp);
     return;
@@ -294,7 +281,7 @@ void PuzzleController::validateMove(
       [callback, moveTiles, userId, puzzleId](const Result &r) {
         if (r.empty()) {
           auto resp = HttpResponse::newHttpJsonResponse(
-              createErrorResponse("Puzzle not found", "NOT_FOUND"));
+              PuzzleController::createErrorResponse("Puzzle not found", "NOT_FOUND"));
           resp->setStatusCode(k404NotFound);
           callback(resp);
           return;
@@ -326,7 +313,7 @@ void PuzzleController::validateMove(
                               std::to_string(row) + ", col " +
                               std::to_string(col) + ".";
             auto resp = HttpResponse::newHttpJsonResponse(
-                createErrorResponse(msg, "VALIDATION_FAILED"));
+                PuzzleController::createErrorResponse(msg, "VALIDATION_FAILED"));
             resp->setStatusCode(k400BadRequest);
             callback(resp);
             return;
@@ -352,7 +339,7 @@ void PuzzleController::validateMove(
 
         if (!straightLineValidation(moveTilesVec)) {
           auto resp = HttpResponse::newHttpJsonResponse(
-              createErrorResponse("Tiles must be in a straight line",
+              PuzzleController::createErrorResponse("Tiles must be in a straight line",
                                   "VALIDATION_FAILED"));
           resp->setStatusCode(k400BadRequest);
           callback(resp);
@@ -389,14 +376,14 @@ void PuzzleController::validateMove(
         if (boardVec.empty()) {
           if (!touchesCenter(moveTilesVec)) {
             auto resp = HttpResponse::newHttpJsonResponse(
-                createErrorResponse("First move must cover center cell (8,8)",
+                PuzzleController::createErrorResponse("First move must cover center cell (8,8)",
                                     "VALIDATION_FAILED"));
             resp->setStatusCode(k400BadRequest);
             callback(resp);
             return;
           }
         } else if (!touchesExisting(boardVec, moveTilesVec)) {
-          auto resp = HttpResponse::newHttpJsonResponse(createErrorResponse(
+          auto resp = HttpResponse::newHttpJsonResponse(PuzzleController::createErrorResponse(
               "Placed tiles must touch existing tiles", "VALIDATION_FAILED"));
           resp->setStatusCode(k400BadRequest);
           callback(resp);
@@ -461,7 +448,7 @@ void PuzzleController::validateMove(
 
         if (!contiguousValidation(boardVec, moveTilesVec)) {
           auto resp = HttpResponse::newHttpJsonResponse(
-              createErrorResponse("Tiles are not contiguous",
+              PuzzleController::createErrorResponse("Tiles are not contiguous",
                                   "VALIDATION_FAILED"));
           resp->setStatusCode(k400BadRequest);
           callback(resp);
@@ -476,7 +463,7 @@ void PuzzleController::validateMove(
 
           auto parts = splitEquation(expr);
           if (parts.size() < 1) {
-            auto resp = HttpResponse::newHttpJsonResponse(createErrorResponse(
+            auto resp = HttpResponse::newHttpJsonResponse(PuzzleController::createErrorResponse(
                 "Invalid equation format: " + expr, "VALIDATION_FAILED"));
             resp->setStatusCode(k400BadRequest);
             callback(resp);
@@ -486,7 +473,7 @@ void PuzzleController::validateMove(
           auto val = evaluateExpression(parts[0]);
           for (size_t i = 1; i < parts.size(); ++i) {
             if (evaluateExpression(parts[i]) != val) {
-              auto resp = HttpResponse::newHttpJsonResponse(createErrorResponse(
+              auto resp = HttpResponse::newHttpJsonResponse(PuzzleController::createErrorResponse(
                   "Equation does not hold: " + expr, "VALIDATION_FAILED"));
               resp->setStatusCode(k400BadRequest);
               callback(resp);
@@ -536,7 +523,7 @@ void PuzzleController::validateMove(
       },
       [callback](const DrogonDbException &e) {
         auto resp = HttpResponse::newHttpJsonResponse(
-            createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
+            PuzzleController::createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
         resp->setStatusCode(k500InternalServerError);
         callback(resp);
       },
@@ -553,7 +540,7 @@ void PuzzleController::submitPuzzle(
   auto uidAttr = req->attributes()->get<std::string>("uid");
   if (uidAttr.empty()) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Not authenticated", "UNAUTHORIZED"));
+        PuzzleController::createErrorResponse("Not authenticated", "UNAUTHORIZED"));
     resp->setStatusCode(k401Unauthorized);
     callback(resp);
     return;
@@ -567,7 +554,7 @@ void PuzzleController::submitPuzzle(
   std::string body{req->getBody()};
   if (!reader->parse(body.c_str(), body.c_str() + body.size(), &root, &errs)) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Invalid JSON", "INVALID_DATA"));
+        PuzzleController::createErrorResponse("Invalid JSON", "INVALID_DATA"));
     resp->setStatusCode(k400BadRequest);
     callback(resp);
     return;
@@ -618,7 +605,7 @@ void PuzzleController::submitPuzzle(
       },
       [callback](const DrogonDbException &e) {
         auto resp = HttpResponse::newHttpJsonResponse(
-            createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
+            PuzzleController::createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
         resp->setStatusCode(k500InternalServerError);
         callback(resp);
       },
@@ -635,7 +622,7 @@ void PuzzleController::getDailyPuzzle(
   auto uidAttr = req->attributes()->get<std::string>("uid");
   if (uidAttr.empty()) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Not authenticated", "UNAUTHORIZED"));
+        PuzzleController::createErrorResponse("Not authenticated", "UNAUTHORIZED"));
     resp->setStatusCode(k401Unauthorized);
     callback(resp);
     return;
@@ -663,7 +650,7 @@ void PuzzleController::getDailyPuzzle(
       [callback, today](const Result &r) {
         if (r.empty()) {
           auto resp = HttpResponse::newHttpJsonResponse(
-              createErrorResponse("No daily puzzle for today", "NOT_FOUND"));
+              PuzzleController::createErrorResponse("No daily puzzle for today", "NOT_FOUND"));
           resp->setStatusCode(k404NotFound);
           callback(resp);
           return;
@@ -707,13 +694,13 @@ void PuzzleController::getDailyPuzzle(
         data["board"] = boardJson;
         data["rack"] = rackJson;
 
-        auto resp = HttpResponse::newHttpJsonResponse(createSuccessResponse(data));
+        auto resp = HttpResponse::newHttpJsonResponse(PuzzleController::createSuccessResponse(data));
         resp->setStatusCode(k200OK);
         callback(resp);
       },
       [callback](const DrogonDbException &e) {
         auto resp = HttpResponse::newHttpJsonResponse(
-            createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
+            PuzzleController::createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
         resp->setStatusCode(k500InternalServerError);
         callback(resp);
       },
@@ -730,7 +717,7 @@ void PuzzleController::getStreak(
   auto uidAttr = req->attributes()->get<std::string>("uid");
   if (uidAttr.empty()) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Not authenticated", "UNAUTHORIZED"));
+        PuzzleController::createErrorResponse("Not authenticated", "UNAUTHORIZED"));
     resp->setStatusCode(k401Unauthorized);
     callback(resp);
     return;
@@ -778,13 +765,13 @@ void PuzzleController::getStreak(
               data["total_daily_completed"] = totalCompleted;
 
               auto resp =
-                  HttpResponse::newHttpJsonResponse(createSuccessResponse(data));
+                  HttpResponse::newHttpJsonResponse(PuzzleController::createSuccessResponse(data));
               resp->setStatusCode(k200OK);
               callback(resp);
             },
             [callback](const DrogonDbException &e) {
               auto resp = HttpResponse::newHttpJsonResponse(
-                  createErrorResponse(std::string(e.base().what()),
+                  PuzzleController::createErrorResponse(std::string(e.base().what()),
                                       "SERVER_ERROR"));
               resp->setStatusCode(k500InternalServerError);
               callback(resp);
@@ -793,7 +780,7 @@ void PuzzleController::getStreak(
       },
       [callback](const DrogonDbException &e) {
         auto resp = HttpResponse::newHttpJsonResponse(
-            createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
+            PuzzleController::createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
         resp->setStatusCode(k500InternalServerError);
         callback(resp);
       },
@@ -810,7 +797,7 @@ void PuzzleController::getUserProgress(
   auto uidAttr = req->attributes()->get<std::string>("uid");
   if (uidAttr.empty()) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Not authenticated", "UNAUTHORIZED"));
+        PuzzleController::createErrorResponse("Not authenticated", "UNAUTHORIZED"));
     resp->setStatusCode(k401Unauthorized);
     callback(resp);
     return;
@@ -886,7 +873,7 @@ void PuzzleController::getUserProgress(
       },
       [callback](const DrogonDbException &e) {
         auto resp = HttpResponse::newHttpJsonResponse(
-            createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
+            PuzzleController::createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
         resp->setStatusCode(k500InternalServerError);
         callback(resp);
       },
@@ -903,7 +890,7 @@ void PuzzleController::getUserStats(
   auto uidAttr = req->attributes()->get<std::string>("uid");
   if (uidAttr.empty()) {
     auto resp = HttpResponse::newHttpJsonResponse(
-        createErrorResponse("Not authenticated", "UNAUTHORIZED"));
+        PuzzleController::createErrorResponse("Not authenticated", "UNAUTHORIZED"));
     resp->setStatusCode(k401Unauthorized);
     callback(resp);
     return;
@@ -1009,13 +996,13 @@ void PuzzleController::getUserStats(
                           data["recent_completions"] = recentArray;
 
                           auto resp = HttpResponse::newHttpJsonResponse(
-                              createSuccessResponse(data));
+                              PuzzleController::createSuccessResponse(data));
                           resp->setStatusCode(k200OK);
                           callback(resp);
                         },
                         [callback](const DrogonDbException &e) {
                           auto resp = HttpResponse::newHttpJsonResponse(
-                              createErrorResponse(std::string(e.base().what()),
+                              PuzzleController::createErrorResponse(std::string(e.base().what()),
                                                   "SERVER_ERROR"));
                           resp->setStatusCode(k500InternalServerError);
                           callback(resp);
@@ -1024,7 +1011,7 @@ void PuzzleController::getUserStats(
                   },
                   [callback](const DrogonDbException &e) {
                     auto resp = HttpResponse::newHttpJsonResponse(
-                        createErrorResponse(std::string(e.base().what()),
+                        PuzzleController::createErrorResponse(std::string(e.base().what()),
                                             "SERVER_ERROR"));
                     resp->setStatusCode(k500InternalServerError);
                     callback(resp);
@@ -1033,7 +1020,7 @@ void PuzzleController::getUserStats(
             },
             [callback](const DrogonDbException &e) {
               auto resp = HttpResponse::newHttpJsonResponse(
-                  createErrorResponse(std::string(e.base().what()),
+                  PuzzleController::createErrorResponse(std::string(e.base().what()),
                                       "SERVER_ERROR"));
               resp->setStatusCode(k500InternalServerError);
               callback(resp);
@@ -1042,7 +1029,7 @@ void PuzzleController::getUserStats(
       },
       [callback](const DrogonDbException &e) {
         auto resp = HttpResponse::newHttpJsonResponse(
-            createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
+            PuzzleController::createErrorResponse(std::string(e.base().what()), "SERVER_ERROR"));
         resp->setStatusCode(k500InternalServerError);
         callback(resp);
       },

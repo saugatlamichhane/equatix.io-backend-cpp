@@ -58,8 +58,8 @@ public:
                     std::function<void(const HttpResponsePtr &)> &&callback);
 
 private:
-  // Helper methods
-  Json::Value createErrorResponse(const std::string &message, 
-                                   const std::string &code);
-  Json::Value createSuccessResponse(const Json::Value &data);
+  // Helper methods (static to work with nested lambdas)
+  static Json::Value createErrorResponse(const std::string &message, 
+                                          const std::string &code);
+  static Json::Value createSuccessResponse(const Json::Value &data);
 };
