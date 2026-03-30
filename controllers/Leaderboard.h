@@ -8,8 +8,7 @@
 class Leaderboard : public drogon::HttpController<Leaderboard> {
 public:
   METHOD_LIST_BEGIN
-  METHOD_ADD(Leaderboard::getLeaderboard, "", drogon::Get,
-             "FirebaseAuthFilter");
+  METHOD_ADD(Leaderboard::getLeaderboard, "", drogon::Get);
   METHOD_LIST_END
 
   void getLeaderboard(
