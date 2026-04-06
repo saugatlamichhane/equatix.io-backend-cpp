@@ -8,6 +8,15 @@
 #include <vector>
 
 using namespace drogon;
+
+struct MoveRecord {
+  int playerSide;
+  std::vector<Json::Value> tiles;
+  int scoreGained;
+  std::string timestamp;
+
+};
+
 struct RoomState {
   std::vector<Json::Value> state_;
   std::vector<Json::Value> current_;
@@ -31,4 +40,5 @@ struct RoomState {
   bool isBotGame = false;
   const double TURN_TIME_LIMIT = 45.0; // seconds
   const double RECONNECT_TIME_LIMIT = 30.0; // seconds
+  std::vector<MoveRecord> moveHistory;
 };

@@ -29,4 +29,5 @@ private:
   void applyGameRewards(const std::string &winnerUid,
                         const std::string &loserUid, bool isForfeit);
   void executeBotMove(const std::string &roomName);
+  void saveGameReview(const RoomState &room, const std::string &winnerUid);
 };

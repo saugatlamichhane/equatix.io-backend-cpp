@@ -247,6 +247,12 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       for (auto &t : room.current_) {
         room.state_.push_back(t);
       }
+      MoveRecord record;
+      record.playerSide = playerTurn;
+      record.tiles = room.current_;
+      record.scoreGained = currentScore;
+      room.moveHistory.push_back(record);
+
       room.current_.clear();
       room.passes = 0;
       std::vector<std::string> &playerRack =
@@ -407,11 +413,12 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         auto winnerUid = (winner == 1) ? room.player1Uid : room.player2Uid;
         auto loserUid = (winner == 1) ? room.player2Uid : room.player1Uid;
         auto clientPtr = drogon::app().getDbClient();
-
+        saveGameReview(room, winnerUid);
         applyGameRewards(winnerUid, loserUid, false);
 
       } else {
         // Draw case
+        saveGameReview(room, "draw");
         auto clientPtr = drogon::app().getDbClient();
         if (room.challengeId != -1) {
           clientPtr->execSqlAsync(
@@ -698,6 +705,7 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
   std::string winnerUid = (winnerSide == 1) ? room.player1Uid : room.player2Uid;
   std::string loserUid = (winnerSide == 1) ? room.player2Uid : room.player1Uid;
   int cId = room.challengeId;
+  saveGameReview(room, winnerUid);
   Json::Value ovr;
   ovr["type"] = "game_over";
   ovr["winner"] = winnerSide;
@@ -828,4 +836,27 @@ void EchoWebsock::executeBotMove(const std::string &roomName) {
     if (checkEndGame(room)) {
         // Handle game over (Multiplayer check is already inside your win block)
     }
+}
+
+void EchoWebsock::saveGameReview(const RoomState &room, const std::string &winnerUid) {
+    Json::Value movesJson(Json::arrayValue);
+    for (const auto &m : room.moveHistory) {
+        Json::Value move;
+        move["side"] = m.playerSide;
+        move["score"] = m.scoreGained;
+        Json::Value tiles(Json::arrayValue);
+        for(const auto &t : m.tiles) tiles.append(t);
+        move["tiles"] = tiles;
+        movesJson.append(move);
+    }
+
+    auto db = drogon::app().getDbClient();
+    db->execSqlAsync(
+        "INSERT INTO game_history (room_id, player1_uid, player2_uid, winner_uid, moves) VALUES ($1, $2, $3, $4, $5)",
+        [](const drogon::orm::Result &r) { LOG_INFO << "Game review saved."; },
+        [](const drogon::orm::DrogonDbException &e) { LOG_ERROR << e.base().what(); },
+        room.challengeId, 
+        room.player1Uid, room.player2Uid, winnerUid,
+        Json::writeString(Json::StreamWriterBuilder(), movesJson)
+    );
 }
