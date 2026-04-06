@@ -13,7 +13,6 @@ using namespace drogon;
 using namespace drogon::orm;
 using namespace drogon_model::neondb;
 
-const std::string GameHistory::Cols::_id = "\"id\"";
 const std::string GameHistory::Cols::_room_id = "\"room_id\"";
 const std::string GameHistory::Cols::_player1_uid = "\"player1_uid\"";
 const std::string GameHistory::Cols::_player2_uid = "\"player2_uid\"";
@@ -22,13 +21,12 @@ const std::string GameHistory::Cols::_final_score_p1 = "\"final_score_p1\"";
 const std::string GameHistory::Cols::_final_score_p2 = "\"final_score_p2\"";
 const std::string GameHistory::Cols::_moves = "\"moves\"";
 const std::string GameHistory::Cols::_played_at = "\"played_at\"";
-const std::string GameHistory::primaryKeyName = "id";
+const std::string GameHistory::primaryKeyName = "room_id";
 const bool GameHistory::hasPrimaryKey = true;
 const std::string GameHistory::tableName = "\"game_history\"";
 
 const std::vector<typename GameHistory::MetaData> GameHistory::metaData_={
-{"id","int32_t","integer",4,1,1,1},
-{"room_id","std::string","character varying",255,0,0,0},
+{"room_id","std::string","character varying",255,0,1,1},
 {"player1_uid","std::string","character varying",255,0,0,0},
 {"player2_uid","std::string","character varying",255,0,0,0},
 {"winner_uid","std::string","character varying",255,0,0,0},
@@ -46,10 +44,6 @@ GameHistory::GameHistory(const Row &r, const ssize_t indexOffset) noexcept
 {
     if(indexOffset < 0)
     {
-        if(!r["id"].isNull())
-        {
-            id_=std::make_shared<int32_t>(r["id"].as<int32_t>());
-        }
         if(!r["room_id"].isNull())
         {
             roomId_=std::make_shared<std::string>(r["room_id"].as<std::string>());
@@ -104,7 +98,7 @@ GameHistory::GameHistory(const Row &r, const ssize_t indexOffset) noexcept
     else
     {
         size_t offset = (size_t)indexOffset;
-        if(offset + 9 > r.size())
+        if(offset + 8 > r.size())
         {
             LOG_FATAL << "Invalid SQL result for this model";
             return;
@@ -113,44 +107,39 @@ GameHistory::GameHistory(const Row &r, const ssize_t indexOffset) noexcept
         index = offset + 0;
         if(!r[index].isNull())
         {
-            id_=std::make_shared<int32_t>(r[index].as<int32_t>());
+            roomId_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 1;
         if(!r[index].isNull())
         {
-            roomId_=std::make_shared<std::string>(r[index].as<std::string>());
+            player1Uid_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 2;
         if(!r[index].isNull())
         {
-            player1Uid_=std::make_shared<std::string>(r[index].as<std::string>());
+            player2Uid_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 3;
         if(!r[index].isNull())
         {
-            player2Uid_=std::make_shared<std::string>(r[index].as<std::string>());
+            winnerUid_=std::make_shared<std::string>(r[index].as<std::string>());
         }
         index = offset + 4;
         if(!r[index].isNull())
         {
-            winnerUid_=std::make_shared<std::string>(r[index].as<std::string>());
+            finalScoreP1_=std::make_shared<int32_t>(r[index].as<int32_t>());
         }
         index = offset + 5;
         if(!r[index].isNull())
         {
-            finalScoreP1_=std::make_shared<int32_t>(r[index].as<int32_t>());
+            finalScoreP2_=std::make_shared<int32_t>(r[index].as<int32_t>());
         }
         index = offset + 6;
         if(!r[index].isNull())
         {
-            finalScoreP2_=std::make_shared<int32_t>(r[index].as<int32_t>());
-        }
-        index = offset + 7;
-        if(!r[index].isNull())
-        {
             moves_=std::make_shared<std::string>(r[index].as<std::string>());
         }
-        index = offset + 8;
+        index = offset + 7;
         if(!r[index].isNull())
         {
             auto timeStr = r[index].as<std::string>();
@@ -179,7 +168,7 @@ GameHistory::GameHistory(const Row &r, const ssize_t indexOffset) noexcept
 
 GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 9)
+    if(pMasqueradingVector.size() != 8)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -189,7 +178,7 @@ GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string
         dirtyFlag_[0] = true;
         if(!pJson[pMasqueradingVector[0]].isNull())
         {
-            id_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[0]].asInt64());
+            roomId_=std::make_shared<std::string>(pJson[pMasqueradingVector[0]].asString());
         }
     }
     if(!pMasqueradingVector[1].empty() && pJson.isMember(pMasqueradingVector[1]))
@@ -197,7 +186,7 @@ GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string
         dirtyFlag_[1] = true;
         if(!pJson[pMasqueradingVector[1]].isNull())
         {
-            roomId_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
+            player1Uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
         }
     }
     if(!pMasqueradingVector[2].empty() && pJson.isMember(pMasqueradingVector[2]))
@@ -205,7 +194,7 @@ GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string
         dirtyFlag_[2] = true;
         if(!pJson[pMasqueradingVector[2]].isNull())
         {
-            player1Uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
+            player2Uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
         }
     }
     if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
@@ -213,7 +202,7 @@ GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            player2Uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+            winnerUid_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
         }
     }
     if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
@@ -221,7 +210,7 @@ GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string
         dirtyFlag_[4] = true;
         if(!pJson[pMasqueradingVector[4]].isNull())
         {
-            winnerUid_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
+            finalScoreP1_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[4]].asInt64());
         }
     }
     if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
@@ -229,7 +218,7 @@ GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string
         dirtyFlag_[5] = true;
         if(!pJson[pMasqueradingVector[5]].isNull())
         {
-            finalScoreP1_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[5]].asInt64());
+            finalScoreP2_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[5]].asInt64());
         }
     }
     if(!pMasqueradingVector[6].empty() && pJson.isMember(pMasqueradingVector[6]))
@@ -237,7 +226,7 @@ GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string
         dirtyFlag_[6] = true;
         if(!pJson[pMasqueradingVector[6]].isNull())
         {
-            finalScoreP2_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[6]].asInt64());
+            moves_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
         }
     }
     if(!pMasqueradingVector[7].empty() && pJson.isMember(pMasqueradingVector[7]))
@@ -245,15 +234,7 @@ GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string
         dirtyFlag_[7] = true;
         if(!pJson[pMasqueradingVector[7]].isNull())
         {
-            moves_=std::make_shared<std::string>(pJson[pMasqueradingVector[7]].asString());
-        }
-    }
-    if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
-    {
-        dirtyFlag_[8] = true;
-        if(!pJson[pMasqueradingVector[8]].isNull())
-        {
-            auto timeStr = pJson[pMasqueradingVector[8]].asString();
+            auto timeStr = pJson[pMasqueradingVector[7]].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -278,17 +259,9 @@ GameHistory::GameHistory(const Json::Value &pJson, const std::vector<std::string
 
 GameHistory::GameHistory(const Json::Value &pJson) noexcept(false)
 {
-    if(pJson.isMember("id"))
-    {
-        dirtyFlag_[0]=true;
-        if(!pJson["id"].isNull())
-        {
-            id_=std::make_shared<int32_t>((int32_t)pJson["id"].asInt64());
-        }
-    }
     if(pJson.isMember("room_id"))
     {
-        dirtyFlag_[1]=true;
+        dirtyFlag_[0]=true;
         if(!pJson["room_id"].isNull())
         {
             roomId_=std::make_shared<std::string>(pJson["room_id"].asString());
@@ -296,7 +269,7 @@ GameHistory::GameHistory(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("player1_uid"))
     {
-        dirtyFlag_[2]=true;
+        dirtyFlag_[1]=true;
         if(!pJson["player1_uid"].isNull())
         {
             player1Uid_=std::make_shared<std::string>(pJson["player1_uid"].asString());
@@ -304,7 +277,7 @@ GameHistory::GameHistory(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("player2_uid"))
     {
-        dirtyFlag_[3]=true;
+        dirtyFlag_[2]=true;
         if(!pJson["player2_uid"].isNull())
         {
             player2Uid_=std::make_shared<std::string>(pJson["player2_uid"].asString());
@@ -312,7 +285,7 @@ GameHistory::GameHistory(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("winner_uid"))
     {
-        dirtyFlag_[4]=true;
+        dirtyFlag_[3]=true;
         if(!pJson["winner_uid"].isNull())
         {
             winnerUid_=std::make_shared<std::string>(pJson["winner_uid"].asString());
@@ -320,7 +293,7 @@ GameHistory::GameHistory(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("final_score_p1"))
     {
-        dirtyFlag_[5]=true;
+        dirtyFlag_[4]=true;
         if(!pJson["final_score_p1"].isNull())
         {
             finalScoreP1_=std::make_shared<int32_t>((int32_t)pJson["final_score_p1"].asInt64());
@@ -328,7 +301,7 @@ GameHistory::GameHistory(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("final_score_p2"))
     {
-        dirtyFlag_[6]=true;
+        dirtyFlag_[5]=true;
         if(!pJson["final_score_p2"].isNull())
         {
             finalScoreP2_=std::make_shared<int32_t>((int32_t)pJson["final_score_p2"].asInt64());
@@ -336,7 +309,7 @@ GameHistory::GameHistory(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("moves"))
     {
-        dirtyFlag_[7]=true;
+        dirtyFlag_[6]=true;
         if(!pJson["moves"].isNull())
         {
             moves_=std::make_shared<std::string>(pJson["moves"].asString());
@@ -344,7 +317,7 @@ GameHistory::GameHistory(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("played_at"))
     {
-        dirtyFlag_[8]=true;
+        dirtyFlag_[7]=true;
         if(!pJson["played_at"].isNull())
         {
             auto timeStr = pJson["played_at"].asString();
@@ -373,7 +346,7 @@ GameHistory::GameHistory(const Json::Value &pJson) noexcept(false)
 void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
                                             const std::vector<std::string> &pMasqueradingVector) noexcept(false)
 {
-    if(pMasqueradingVector.size() != 9)
+    if(pMasqueradingVector.size() != 8)
     {
         LOG_ERROR << "Bad masquerading vector";
         return;
@@ -382,7 +355,7 @@ void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
     {
         if(!pJson[pMasqueradingVector[0]].isNull())
         {
-            id_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[0]].asInt64());
+            roomId_=std::make_shared<std::string>(pJson[pMasqueradingVector[0]].asString());
         }
     }
     if(!pMasqueradingVector[1].empty() && pJson.isMember(pMasqueradingVector[1]))
@@ -390,7 +363,7 @@ void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[1] = true;
         if(!pJson[pMasqueradingVector[1]].isNull())
         {
-            roomId_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
+            player1Uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[1]].asString());
         }
     }
     if(!pMasqueradingVector[2].empty() && pJson.isMember(pMasqueradingVector[2]))
@@ -398,7 +371,7 @@ void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[2] = true;
         if(!pJson[pMasqueradingVector[2]].isNull())
         {
-            player1Uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
+            player2Uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[2]].asString());
         }
     }
     if(!pMasqueradingVector[3].empty() && pJson.isMember(pMasqueradingVector[3]))
@@ -406,7 +379,7 @@ void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[3] = true;
         if(!pJson[pMasqueradingVector[3]].isNull())
         {
-            player2Uid_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
+            winnerUid_=std::make_shared<std::string>(pJson[pMasqueradingVector[3]].asString());
         }
     }
     if(!pMasqueradingVector[4].empty() && pJson.isMember(pMasqueradingVector[4]))
@@ -414,7 +387,7 @@ void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[4] = true;
         if(!pJson[pMasqueradingVector[4]].isNull())
         {
-            winnerUid_=std::make_shared<std::string>(pJson[pMasqueradingVector[4]].asString());
+            finalScoreP1_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[4]].asInt64());
         }
     }
     if(!pMasqueradingVector[5].empty() && pJson.isMember(pMasqueradingVector[5]))
@@ -422,7 +395,7 @@ void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[5] = true;
         if(!pJson[pMasqueradingVector[5]].isNull())
         {
-            finalScoreP1_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[5]].asInt64());
+            finalScoreP2_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[5]].asInt64());
         }
     }
     if(!pMasqueradingVector[6].empty() && pJson.isMember(pMasqueradingVector[6]))
@@ -430,7 +403,7 @@ void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[6] = true;
         if(!pJson[pMasqueradingVector[6]].isNull())
         {
-            finalScoreP2_=std::make_shared<int32_t>((int32_t)pJson[pMasqueradingVector[6]].asInt64());
+            moves_=std::make_shared<std::string>(pJson[pMasqueradingVector[6]].asString());
         }
     }
     if(!pMasqueradingVector[7].empty() && pJson.isMember(pMasqueradingVector[7]))
@@ -438,15 +411,7 @@ void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
         dirtyFlag_[7] = true;
         if(!pJson[pMasqueradingVector[7]].isNull())
         {
-            moves_=std::make_shared<std::string>(pJson[pMasqueradingVector[7]].asString());
-        }
-    }
-    if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
-    {
-        dirtyFlag_[8] = true;
-        if(!pJson[pMasqueradingVector[8]].isNull())
-        {
-            auto timeStr = pJson[pMasqueradingVector[8]].asString();
+            auto timeStr = pJson[pMasqueradingVector[7]].asString();
             struct tm stm;
             memset(&stm,0,sizeof(stm));
             auto p = strptime(timeStr.c_str(),"%Y-%m-%d %H:%M:%S",&stm);
@@ -471,16 +436,8 @@ void GameHistory::updateByMasqueradedJson(const Json::Value &pJson,
 
 void GameHistory::updateByJson(const Json::Value &pJson) noexcept(false)
 {
-    if(pJson.isMember("id"))
-    {
-        if(!pJson["id"].isNull())
-        {
-            id_=std::make_shared<int32_t>((int32_t)pJson["id"].asInt64());
-        }
-    }
     if(pJson.isMember("room_id"))
     {
-        dirtyFlag_[1] = true;
         if(!pJson["room_id"].isNull())
         {
             roomId_=std::make_shared<std::string>(pJson["room_id"].asString());
@@ -488,7 +445,7 @@ void GameHistory::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("player1_uid"))
     {
-        dirtyFlag_[2] = true;
+        dirtyFlag_[1] = true;
         if(!pJson["player1_uid"].isNull())
         {
             player1Uid_=std::make_shared<std::string>(pJson["player1_uid"].asString());
@@ -496,7 +453,7 @@ void GameHistory::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("player2_uid"))
     {
-        dirtyFlag_[3] = true;
+        dirtyFlag_[2] = true;
         if(!pJson["player2_uid"].isNull())
         {
             player2Uid_=std::make_shared<std::string>(pJson["player2_uid"].asString());
@@ -504,7 +461,7 @@ void GameHistory::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("winner_uid"))
     {
-        dirtyFlag_[4] = true;
+        dirtyFlag_[3] = true;
         if(!pJson["winner_uid"].isNull())
         {
             winnerUid_=std::make_shared<std::string>(pJson["winner_uid"].asString());
@@ -512,7 +469,7 @@ void GameHistory::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("final_score_p1"))
     {
-        dirtyFlag_[5] = true;
+        dirtyFlag_[4] = true;
         if(!pJson["final_score_p1"].isNull())
         {
             finalScoreP1_=std::make_shared<int32_t>((int32_t)pJson["final_score_p1"].asInt64());
@@ -520,7 +477,7 @@ void GameHistory::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("final_score_p2"))
     {
-        dirtyFlag_[6] = true;
+        dirtyFlag_[5] = true;
         if(!pJson["final_score_p2"].isNull())
         {
             finalScoreP2_=std::make_shared<int32_t>((int32_t)pJson["final_score_p2"].asInt64());
@@ -528,7 +485,7 @@ void GameHistory::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("moves"))
     {
-        dirtyFlag_[7] = true;
+        dirtyFlag_[6] = true;
         if(!pJson["moves"].isNull())
         {
             moves_=std::make_shared<std::string>(pJson["moves"].asString());
@@ -536,7 +493,7 @@ void GameHistory::updateByJson(const Json::Value &pJson) noexcept(false)
     }
     if(pJson.isMember("played_at"))
     {
-        dirtyFlag_[8] = true;
+        dirtyFlag_[7] = true;
         if(!pJson["played_at"].isNull())
         {
             auto timeStr = pJson["played_at"].asString();
@@ -562,28 +519,6 @@ void GameHistory::updateByJson(const Json::Value &pJson) noexcept(false)
     }
 }
 
-const int32_t &GameHistory::getValueOfId() const noexcept
-{
-    static const int32_t defaultValue = int32_t();
-    if(id_)
-        return *id_;
-    return defaultValue;
-}
-const std::shared_ptr<int32_t> &GameHistory::getId() const noexcept
-{
-    return id_;
-}
-void GameHistory::setId(const int32_t &pId) noexcept
-{
-    id_ = std::make_shared<int32_t>(pId);
-    dirtyFlag_[0] = true;
-}
-const typename GameHistory::PrimaryKeyType & GameHistory::getPrimaryKey() const
-{
-    assert(id_);
-    return *id_;
-}
-
 const std::string &GameHistory::getValueOfRoomId() const noexcept
 {
     static const std::string defaultValue = std::string();
@@ -598,17 +533,17 @@ const std::shared_ptr<std::string> &GameHistory::getRoomId() const noexcept
 void GameHistory::setRoomId(const std::string &pRoomId) noexcept
 {
     roomId_ = std::make_shared<std::string>(pRoomId);
-    dirtyFlag_[1] = true;
+    dirtyFlag_[0] = true;
 }
 void GameHistory::setRoomId(std::string &&pRoomId) noexcept
 {
     roomId_ = std::make_shared<std::string>(std::move(pRoomId));
-    dirtyFlag_[1] = true;
+    dirtyFlag_[0] = true;
 }
-void GameHistory::setRoomIdToNull() noexcept
+const typename GameHistory::PrimaryKeyType & GameHistory::getPrimaryKey() const
 {
-    roomId_.reset();
-    dirtyFlag_[1] = true;
+    assert(roomId_);
+    return *roomId_;
 }
 
 const std::string &GameHistory::getValueOfPlayer1Uid() const noexcept
@@ -625,17 +560,17 @@ const std::shared_ptr<std::string> &GameHistory::getPlayer1Uid() const noexcept
 void GameHistory::setPlayer1Uid(const std::string &pPlayer1Uid) noexcept
 {
     player1Uid_ = std::make_shared<std::string>(pPlayer1Uid);
-    dirtyFlag_[2] = true;
+    dirtyFlag_[1] = true;
 }
 void GameHistory::setPlayer1Uid(std::string &&pPlayer1Uid) noexcept
 {
     player1Uid_ = std::make_shared<std::string>(std::move(pPlayer1Uid));
-    dirtyFlag_[2] = true;
+    dirtyFlag_[1] = true;
 }
 void GameHistory::setPlayer1UidToNull() noexcept
 {
     player1Uid_.reset();
-    dirtyFlag_[2] = true;
+    dirtyFlag_[1] = true;
 }
 
 const std::string &GameHistory::getValueOfPlayer2Uid() const noexcept
@@ -652,17 +587,17 @@ const std::shared_ptr<std::string> &GameHistory::getPlayer2Uid() const noexcept
 void GameHistory::setPlayer2Uid(const std::string &pPlayer2Uid) noexcept
 {
     player2Uid_ = std::make_shared<std::string>(pPlayer2Uid);
-    dirtyFlag_[3] = true;
+    dirtyFlag_[2] = true;
 }
 void GameHistory::setPlayer2Uid(std::string &&pPlayer2Uid) noexcept
 {
     player2Uid_ = std::make_shared<std::string>(std::move(pPlayer2Uid));
-    dirtyFlag_[3] = true;
+    dirtyFlag_[2] = true;
 }
 void GameHistory::setPlayer2UidToNull() noexcept
 {
     player2Uid_.reset();
-    dirtyFlag_[3] = true;
+    dirtyFlag_[2] = true;
 }
 
 const std::string &GameHistory::getValueOfWinnerUid() const noexcept
@@ -679,17 +614,17 @@ const std::shared_ptr<std::string> &GameHistory::getWinnerUid() const noexcept
 void GameHistory::setWinnerUid(const std::string &pWinnerUid) noexcept
 {
     winnerUid_ = std::make_shared<std::string>(pWinnerUid);
-    dirtyFlag_[4] = true;
+    dirtyFlag_[3] = true;
 }
 void GameHistory::setWinnerUid(std::string &&pWinnerUid) noexcept
 {
     winnerUid_ = std::make_shared<std::string>(std::move(pWinnerUid));
-    dirtyFlag_[4] = true;
+    dirtyFlag_[3] = true;
 }
 void GameHistory::setWinnerUidToNull() noexcept
 {
     winnerUid_.reset();
-    dirtyFlag_[4] = true;
+    dirtyFlag_[3] = true;
 }
 
 const int32_t &GameHistory::getValueOfFinalScoreP1() const noexcept
@@ -706,12 +641,12 @@ const std::shared_ptr<int32_t> &GameHistory::getFinalScoreP1() const noexcept
 void GameHistory::setFinalScoreP1(const int32_t &pFinalScoreP1) noexcept
 {
     finalScoreP1_ = std::make_shared<int32_t>(pFinalScoreP1);
-    dirtyFlag_[5] = true;
+    dirtyFlag_[4] = true;
 }
 void GameHistory::setFinalScoreP1ToNull() noexcept
 {
     finalScoreP1_.reset();
-    dirtyFlag_[5] = true;
+    dirtyFlag_[4] = true;
 }
 
 const int32_t &GameHistory::getValueOfFinalScoreP2() const noexcept
@@ -728,12 +663,12 @@ const std::shared_ptr<int32_t> &GameHistory::getFinalScoreP2() const noexcept
 void GameHistory::setFinalScoreP2(const int32_t &pFinalScoreP2) noexcept
 {
     finalScoreP2_ = std::make_shared<int32_t>(pFinalScoreP2);
-    dirtyFlag_[6] = true;
+    dirtyFlag_[5] = true;
 }
 void GameHistory::setFinalScoreP2ToNull() noexcept
 {
     finalScoreP2_.reset();
-    dirtyFlag_[6] = true;
+    dirtyFlag_[5] = true;
 }
 
 const std::string &GameHistory::getValueOfMoves() const noexcept
@@ -750,17 +685,17 @@ const std::shared_ptr<std::string> &GameHistory::getMoves() const noexcept
 void GameHistory::setMoves(const std::string &pMoves) noexcept
 {
     moves_ = std::make_shared<std::string>(pMoves);
-    dirtyFlag_[7] = true;
+    dirtyFlag_[6] = true;
 }
 void GameHistory::setMoves(std::string &&pMoves) noexcept
 {
     moves_ = std::make_shared<std::string>(std::move(pMoves));
-    dirtyFlag_[7] = true;
+    dirtyFlag_[6] = true;
 }
 void GameHistory::setMovesToNull() noexcept
 {
     moves_.reset();
-    dirtyFlag_[7] = true;
+    dirtyFlag_[6] = true;
 }
 
 const ::trantor::Date &GameHistory::getValueOfPlayedAt() const noexcept
@@ -777,12 +712,12 @@ const std::shared_ptr<::trantor::Date> &GameHistory::getPlayedAt() const noexcep
 void GameHistory::setPlayedAt(const ::trantor::Date &pPlayedAt) noexcept
 {
     playedAt_ = std::make_shared<::trantor::Date>(pPlayedAt);
-    dirtyFlag_[8] = true;
+    dirtyFlag_[7] = true;
 }
 void GameHistory::setPlayedAtToNull() noexcept
 {
     playedAt_.reset();
-    dirtyFlag_[8] = true;
+    dirtyFlag_[7] = true;
 }
 
 void GameHistory::updateId(const uint64_t id)
@@ -806,7 +741,7 @@ const std::vector<std::string> &GameHistory::insertColumns() noexcept
 
 void GameHistory::outputArgs(drogon::orm::internal::SqlBinder &binder) const
 {
-    if(dirtyFlag_[1])
+    if(dirtyFlag_[0])
     {
         if(getRoomId())
         {
@@ -817,7 +752,7 @@ void GameHistory::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[2])
+    if(dirtyFlag_[1])
     {
         if(getPlayer1Uid())
         {
@@ -828,7 +763,7 @@ void GameHistory::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[3])
+    if(dirtyFlag_[2])
     {
         if(getPlayer2Uid())
         {
@@ -839,7 +774,7 @@ void GameHistory::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[4])
+    if(dirtyFlag_[3])
     {
         if(getWinnerUid())
         {
@@ -850,7 +785,7 @@ void GameHistory::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[5])
+    if(dirtyFlag_[4])
     {
         if(getFinalScoreP1())
         {
@@ -861,7 +796,7 @@ void GameHistory::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[6])
+    if(dirtyFlag_[5])
     {
         if(getFinalScoreP2())
         {
@@ -872,7 +807,7 @@ void GameHistory::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[7])
+    if(dirtyFlag_[6])
     {
         if(getMoves())
         {
@@ -883,7 +818,7 @@ void GameHistory::outputArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[8])
+    if(dirtyFlag_[7])
     {
         if(getPlayedAt())
         {
@@ -899,6 +834,10 @@ void GameHistory::outputArgs(drogon::orm::internal::SqlBinder &binder) const
 const std::vector<std::string> GameHistory::updateColumns() const
 {
     std::vector<std::string> ret;
+    if(dirtyFlag_[0])
+    {
+        ret.push_back(getColumnName(0));
+    }
     if(dirtyFlag_[1])
     {
         ret.push_back(getColumnName(1));
@@ -927,16 +866,12 @@ const std::vector<std::string> GameHistory::updateColumns() const
     {
         ret.push_back(getColumnName(7));
     }
-    if(dirtyFlag_[8])
-    {
-        ret.push_back(getColumnName(8));
-    }
     return ret;
 }
 
 void GameHistory::updateArgs(drogon::orm::internal::SqlBinder &binder) const
 {
-    if(dirtyFlag_[1])
+    if(dirtyFlag_[0])
     {
         if(getRoomId())
         {
@@ -947,7 +882,7 @@ void GameHistory::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[2])
+    if(dirtyFlag_[1])
     {
         if(getPlayer1Uid())
         {
@@ -958,7 +893,7 @@ void GameHistory::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[3])
+    if(dirtyFlag_[2])
     {
         if(getPlayer2Uid())
         {
@@ -969,7 +904,7 @@ void GameHistory::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[4])
+    if(dirtyFlag_[3])
     {
         if(getWinnerUid())
         {
@@ -980,7 +915,7 @@ void GameHistory::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[5])
+    if(dirtyFlag_[4])
     {
         if(getFinalScoreP1())
         {
@@ -991,7 +926,7 @@ void GameHistory::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[6])
+    if(dirtyFlag_[5])
     {
         if(getFinalScoreP2())
         {
@@ -1002,7 +937,7 @@ void GameHistory::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[7])
+    if(dirtyFlag_[6])
     {
         if(getMoves())
         {
@@ -1013,7 +948,7 @@ void GameHistory::updateArgs(drogon::orm::internal::SqlBinder &binder) const
             binder << nullptr;
         }
     }
-    if(dirtyFlag_[8])
+    if(dirtyFlag_[7])
     {
         if(getPlayedAt())
         {
@@ -1028,14 +963,6 @@ void GameHistory::updateArgs(drogon::orm::internal::SqlBinder &binder) const
 Json::Value GameHistory::toJson() const
 {
     Json::Value ret;
-    if(getId())
-    {
-        ret["id"]=getValueOfId();
-    }
-    else
-    {
-        ret["id"]=Json::Value();
-    }
     if(getRoomId())
     {
         ret["room_id"]=getValueOfRoomId();
@@ -1112,13 +1039,13 @@ Json::Value GameHistory::toMasqueradedJson(
     const std::vector<std::string> &pMasqueradingVector) const
 {
     Json::Value ret;
-    if(pMasqueradingVector.size() == 9)
+    if(pMasqueradingVector.size() == 8)
     {
         if(!pMasqueradingVector[0].empty())
         {
-            if(getId())
+            if(getRoomId())
             {
-                ret[pMasqueradingVector[0]]=getValueOfId();
+                ret[pMasqueradingVector[0]]=getValueOfRoomId();
             }
             else
             {
@@ -1127,9 +1054,9 @@ Json::Value GameHistory::toMasqueradedJson(
         }
         if(!pMasqueradingVector[1].empty())
         {
-            if(getRoomId())
+            if(getPlayer1Uid())
             {
-                ret[pMasqueradingVector[1]]=getValueOfRoomId();
+                ret[pMasqueradingVector[1]]=getValueOfPlayer1Uid();
             }
             else
             {
@@ -1138,9 +1065,9 @@ Json::Value GameHistory::toMasqueradedJson(
         }
         if(!pMasqueradingVector[2].empty())
         {
-            if(getPlayer1Uid())
+            if(getPlayer2Uid())
             {
-                ret[pMasqueradingVector[2]]=getValueOfPlayer1Uid();
+                ret[pMasqueradingVector[2]]=getValueOfPlayer2Uid();
             }
             else
             {
@@ -1149,9 +1076,9 @@ Json::Value GameHistory::toMasqueradedJson(
         }
         if(!pMasqueradingVector[3].empty())
         {
-            if(getPlayer2Uid())
+            if(getWinnerUid())
             {
-                ret[pMasqueradingVector[3]]=getValueOfPlayer2Uid();
+                ret[pMasqueradingVector[3]]=getValueOfWinnerUid();
             }
             else
             {
@@ -1160,9 +1087,9 @@ Json::Value GameHistory::toMasqueradedJson(
         }
         if(!pMasqueradingVector[4].empty())
         {
-            if(getWinnerUid())
+            if(getFinalScoreP1())
             {
-                ret[pMasqueradingVector[4]]=getValueOfWinnerUid();
+                ret[pMasqueradingVector[4]]=getValueOfFinalScoreP1();
             }
             else
             {
@@ -1171,9 +1098,9 @@ Json::Value GameHistory::toMasqueradedJson(
         }
         if(!pMasqueradingVector[5].empty())
         {
-            if(getFinalScoreP1())
+            if(getFinalScoreP2())
             {
-                ret[pMasqueradingVector[5]]=getValueOfFinalScoreP1();
+                ret[pMasqueradingVector[5]]=getValueOfFinalScoreP2();
             }
             else
             {
@@ -1182,9 +1109,9 @@ Json::Value GameHistory::toMasqueradedJson(
         }
         if(!pMasqueradingVector[6].empty())
         {
-            if(getFinalScoreP2())
+            if(getMoves())
             {
-                ret[pMasqueradingVector[6]]=getValueOfFinalScoreP2();
+                ret[pMasqueradingVector[6]]=getValueOfMoves();
             }
             else
             {
@@ -1193,37 +1120,18 @@ Json::Value GameHistory::toMasqueradedJson(
         }
         if(!pMasqueradingVector[7].empty())
         {
-            if(getMoves())
+            if(getPlayedAt())
             {
-                ret[pMasqueradingVector[7]]=getValueOfMoves();
+                ret[pMasqueradingVector[7]]=getPlayedAt()->toDbStringLocal();
             }
             else
             {
                 ret[pMasqueradingVector[7]]=Json::Value();
             }
         }
-        if(!pMasqueradingVector[8].empty())
-        {
-            if(getPlayedAt())
-            {
-                ret[pMasqueradingVector[8]]=getPlayedAt()->toDbStringLocal();
-            }
-            else
-            {
-                ret[pMasqueradingVector[8]]=Json::Value();
-            }
-        }
         return ret;
     }
     LOG_ERROR << "Masquerade failed";
-    if(getId())
-    {
-        ret["id"]=getValueOfId();
-    }
-    else
-    {
-        ret["id"]=Json::Value();
-    }
     if(getRoomId())
     {
         ret["room_id"]=getValueOfRoomId();
@@ -1293,49 +1201,49 @@ Json::Value GameHistory::toMasqueradedJson(
 
 bool GameHistory::validateJsonForCreation(const Json::Value &pJson, std::string &err)
 {
-    if(pJson.isMember("id"))
-    {
-        if(!validJsonOfField(0, "id", pJson["id"], err, true))
-            return false;
-    }
     if(pJson.isMember("room_id"))
     {
-        if(!validJsonOfField(1, "room_id", pJson["room_id"], err, true))
+        if(!validJsonOfField(0, "room_id", pJson["room_id"], err, true))
             return false;
+    }
+    else
+    {
+        err="The room_id column cannot be null";
+        return false;
     }
     if(pJson.isMember("player1_uid"))
     {
-        if(!validJsonOfField(2, "player1_uid", pJson["player1_uid"], err, true))
+        if(!validJsonOfField(1, "player1_uid", pJson["player1_uid"], err, true))
             return false;
     }
     if(pJson.isMember("player2_uid"))
     {
-        if(!validJsonOfField(3, "player2_uid", pJson["player2_uid"], err, true))
+        if(!validJsonOfField(2, "player2_uid", pJson["player2_uid"], err, true))
             return false;
     }
     if(pJson.isMember("winner_uid"))
     {
-        if(!validJsonOfField(4, "winner_uid", pJson["winner_uid"], err, true))
+        if(!validJsonOfField(3, "winner_uid", pJson["winner_uid"], err, true))
             return false;
     }
     if(pJson.isMember("final_score_p1"))
     {
-        if(!validJsonOfField(5, "final_score_p1", pJson["final_score_p1"], err, true))
+        if(!validJsonOfField(4, "final_score_p1", pJson["final_score_p1"], err, true))
             return false;
     }
     if(pJson.isMember("final_score_p2"))
     {
-        if(!validJsonOfField(6, "final_score_p2", pJson["final_score_p2"], err, true))
+        if(!validJsonOfField(5, "final_score_p2", pJson["final_score_p2"], err, true))
             return false;
     }
     if(pJson.isMember("moves"))
     {
-        if(!validJsonOfField(7, "moves", pJson["moves"], err, true))
+        if(!validJsonOfField(6, "moves", pJson["moves"], err, true))
             return false;
     }
     if(pJson.isMember("played_at"))
     {
-        if(!validJsonOfField(8, "played_at", pJson["played_at"], err, true))
+        if(!validJsonOfField(7, "played_at", pJson["played_at"], err, true))
             return false;
     }
     return true;
@@ -1344,7 +1252,7 @@ bool GameHistory::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                                                      const std::vector<std::string> &pMasqueradingVector,
                                                      std::string &err)
 {
-    if(pMasqueradingVector.size() != 9)
+    if(pMasqueradingVector.size() != 8)
     {
         err = "Bad masquerading vector";
         return false;
@@ -1357,6 +1265,11 @@ bool GameHistory::validateMasqueradedJsonForCreation(const Json::Value &pJson,
               if(!validJsonOfField(0, pMasqueradingVector[0], pJson[pMasqueradingVector[0]], err, true))
                   return false;
           }
+        else
+        {
+            err="The " + pMasqueradingVector[0] + " column cannot be null";
+            return false;
+        }
       }
       if(!pMasqueradingVector[1].empty())
       {
@@ -1414,14 +1327,6 @@ bool GameHistory::validateMasqueradedJsonForCreation(const Json::Value &pJson,
                   return false;
           }
       }
-      if(!pMasqueradingVector[8].empty())
-      {
-          if(pJson.isMember(pMasqueradingVector[8]))
-          {
-              if(!validJsonOfField(8, pMasqueradingVector[8], pJson[pMasqueradingVector[8]], err, true))
-                  return false;
-          }
-      }
     }
     catch(const Json::LogicError &e)
     {
@@ -1432,9 +1337,9 @@ bool GameHistory::validateMasqueradedJsonForCreation(const Json::Value &pJson,
 }
 bool GameHistory::validateJsonForUpdate(const Json::Value &pJson, std::string &err)
 {
-    if(pJson.isMember("id"))
+    if(pJson.isMember("room_id"))
     {
-        if(!validJsonOfField(0, "id", pJson["id"], err, false))
+        if(!validJsonOfField(0, "room_id", pJson["room_id"], err, false))
             return false;
     }
     else
@@ -1442,44 +1347,39 @@ bool GameHistory::validateJsonForUpdate(const Json::Value &pJson, std::string &e
         err = "The value of primary key must be set in the json object for update";
         return false;
     }
-    if(pJson.isMember("room_id"))
-    {
-        if(!validJsonOfField(1, "room_id", pJson["room_id"], err, false))
-            return false;
-    }
     if(pJson.isMember("player1_uid"))
     {
-        if(!validJsonOfField(2, "player1_uid", pJson["player1_uid"], err, false))
+        if(!validJsonOfField(1, "player1_uid", pJson["player1_uid"], err, false))
             return false;
     }
     if(pJson.isMember("player2_uid"))
     {
-        if(!validJsonOfField(3, "player2_uid", pJson["player2_uid"], err, false))
+        if(!validJsonOfField(2, "player2_uid", pJson["player2_uid"], err, false))
             return false;
     }
     if(pJson.isMember("winner_uid"))
     {
-        if(!validJsonOfField(4, "winner_uid", pJson["winner_uid"], err, false))
+        if(!validJsonOfField(3, "winner_uid", pJson["winner_uid"], err, false))
             return false;
     }
     if(pJson.isMember("final_score_p1"))
     {
-        if(!validJsonOfField(5, "final_score_p1", pJson["final_score_p1"], err, false))
+        if(!validJsonOfField(4, "final_score_p1", pJson["final_score_p1"], err, false))
             return false;
     }
     if(pJson.isMember("final_score_p2"))
     {
-        if(!validJsonOfField(6, "final_score_p2", pJson["final_score_p2"], err, false))
+        if(!validJsonOfField(5, "final_score_p2", pJson["final_score_p2"], err, false))
             return false;
     }
     if(pJson.isMember("moves"))
     {
-        if(!validJsonOfField(7, "moves", pJson["moves"], err, false))
+        if(!validJsonOfField(6, "moves", pJson["moves"], err, false))
             return false;
     }
     if(pJson.isMember("played_at"))
     {
-        if(!validJsonOfField(8, "played_at", pJson["played_at"], err, false))
+        if(!validJsonOfField(7, "played_at", pJson["played_at"], err, false))
             return false;
     }
     return true;
@@ -1488,7 +1388,7 @@ bool GameHistory::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
                                                    const std::vector<std::string> &pMasqueradingVector,
                                                    std::string &err)
 {
-    if(pMasqueradingVector.size() != 9)
+    if(pMasqueradingVector.size() != 8)
     {
         err = "Bad masquerading vector";
         return false;
@@ -1539,11 +1439,6 @@ bool GameHistory::validateMasqueradedJsonForUpdate(const Json::Value &pJson,
           if(!validJsonOfField(7, pMasqueradingVector[7], pJson[pMasqueradingVector[7]], err, false))
               return false;
       }
-      if(!pMasqueradingVector[8].empty() && pJson.isMember(pMasqueradingVector[8]))
-      {
-          if(!validJsonOfField(8, pMasqueradingVector[8], pJson[pMasqueradingVector[8]], err, false))
-              return false;
-      }
     }
     catch(const Json::LogicError &e)
     {
@@ -1566,16 +1461,19 @@ bool GameHistory::validJsonOfField(size_t index,
                 err="The " + fieldName + " column cannot be null";
                 return false;
             }
-            if(isForCreation)
-            {
-                err="The automatic primary key cannot be set";
-                return false;
-            }
-            if(!pJson.isInt())
+            if(!pJson.isString())
             {
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
+            if(pJson.isString() && std::strlen(pJson.asCString()) > 255)
+            {
+                err="String length exceeds limit for the " +
+                    fieldName +
+                    " field (the maximum value is 255)";
+                return false;
+            }
+
             break;
         case 1:
             if(pJson.isNull())
@@ -1639,19 +1537,11 @@ bool GameHistory::validJsonOfField(size_t index,
             {
                 return true;
             }
-            if(!pJson.isString())
+            if(!pJson.isInt())
             {
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
-            if(pJson.isString() && std::strlen(pJson.asCString()) > 255)
-            {
-                err="String length exceeds limit for the " +
-                    fieldName +
-                    " field (the maximum value is 255)";
-                return false;
-            }
-
             break;
         case 5:
             if(pJson.isNull())
@@ -1669,24 +1559,13 @@ bool GameHistory::validJsonOfField(size_t index,
             {
                 return true;
             }
-            if(!pJson.isInt())
-            {
-                err="Type error in the "+fieldName+" field";
-                return false;
-            }
-            break;
-        case 7:
-            if(pJson.isNull())
-            {
-                return true;
-            }
             if(!pJson.isString())
             {
                 err="Type error in the "+fieldName+" field";
                 return false;
             }
             break;
-        case 8:
+        case 7:
             if(pJson.isNull())
             {
                 return true;

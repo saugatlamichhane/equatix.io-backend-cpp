@@ -44,7 +44,6 @@ class GameHistory
   public:
     struct Cols
     {
-        static const std::string _id;
         static const std::string _room_id;
         static const std::string _player1_uid;
         static const std::string _player2_uid;
@@ -59,7 +58,7 @@ class GameHistory
     static const std::string tableName;
     static const bool hasPrimaryKey;
     static const std::string primaryKeyName;
-    using PrimaryKeyType = int32_t;
+    using PrimaryKeyType = std::string;
     const PrimaryKeyType &getPrimaryKey() const;
 
     /**
@@ -104,14 +103,6 @@ class GameHistory
                           std::string &err,
                           bool isForCreation);
 
-    /**  For column id  */
-    ///Get the value of the column id, returns the default value if the column is null
-    const int32_t &getValueOfId() const noexcept;
-    ///Return a shared_ptr object pointing to the column const value, or an empty shared_ptr object if the column is null
-    const std::shared_ptr<int32_t> &getId() const noexcept;
-    ///Set the value of the column id
-    void setId(const int32_t &pId) noexcept;
-
     /**  For column room_id  */
     ///Get the value of the column room_id, returns the default value if the column is null
     const std::string &getValueOfRoomId() const noexcept;
@@ -120,7 +111,6 @@ class GameHistory
     ///Set the value of the column room_id
     void setRoomId(const std::string &pRoomId) noexcept;
     void setRoomId(std::string &&pRoomId) noexcept;
-    void setRoomIdToNull() noexcept;
 
     /**  For column player1_uid  */
     ///Get the value of the column player1_uid, returns the default value if the column is null
@@ -190,7 +180,7 @@ class GameHistory
     void setPlayedAtToNull() noexcept;
 
 
-    static size_t getColumnNumber() noexcept {  return 9;  }
+    static size_t getColumnNumber() noexcept {  return 8;  }
     static const std::string &getColumnName(size_t index) noexcept(false);
 
     Json::Value toJson() const;
@@ -212,7 +202,6 @@ class GameHistory
     void updateArgs(drogon::orm::internal::SqlBinder &binder) const;
     ///For mysql or sqlite3
     void updateId(const uint64_t id);
-    std::shared_ptr<int32_t> id_;
     std::shared_ptr<std::string> roomId_;
     std::shared_ptr<std::string> player1Uid_;
     std::shared_ptr<std::string> player2Uid_;
@@ -232,17 +221,17 @@ class GameHistory
         const bool notNull_;
     };
     static const std::vector<MetaData> metaData_;
-    bool dirtyFlag_[9]={ false };
+    bool dirtyFlag_[8]={ false };
   public:
     static const std::string &sqlForFindingByPrimaryKey()
     {
-        static const std::string sql="select * from " + tableName + " where id = $1";
+        static const std::string sql="select * from " + tableName + " where room_id = $1";
         return sql;
     }
 
     static const std::string &sqlForDeletingByPrimaryKey()
     {
-        static const std::string sql="delete from " + tableName + " where id = $1";
+        static const std::string sql="delete from " + tableName + " where room_id = $1";
         return sql;
     }
     std::string sqlForInserting(bool &needSelection) const
@@ -250,50 +239,47 @@ class GameHistory
         std::string sql="insert into " + tableName + " (";
         size_t parametersCount = 0;
         needSelection = false;
-            sql += "id,";
-            ++parametersCount;
-        if(dirtyFlag_[1])
+        if(dirtyFlag_[0])
         {
             sql += "room_id,";
             ++parametersCount;
         }
-        if(dirtyFlag_[2])
+        if(dirtyFlag_[1])
         {
             sql += "player1_uid,";
             ++parametersCount;
         }
-        if(dirtyFlag_[3])
+        if(dirtyFlag_[2])
         {
             sql += "player2_uid,";
             ++parametersCount;
         }
-        if(dirtyFlag_[4])
+        if(dirtyFlag_[3])
         {
             sql += "winner_uid,";
             ++parametersCount;
         }
-        if(dirtyFlag_[5])
+        if(dirtyFlag_[4])
         {
             sql += "final_score_p1,";
             ++parametersCount;
         }
-        if(dirtyFlag_[6])
+        if(dirtyFlag_[5])
         {
             sql += "final_score_p2,";
             ++parametersCount;
         }
-        if(dirtyFlag_[7])
+        if(dirtyFlag_[6])
         {
             sql += "moves,";
             ++parametersCount;
         }
         sql += "played_at,";
         ++parametersCount;
-        if(!dirtyFlag_[8])
+        if(!dirtyFlag_[7])
         {
             needSelection=true;
         }
-        needSelection=true;
         if(parametersCount > 0)
         {
             sql[sql.length()-1]=')';
@@ -305,7 +291,11 @@ class GameHistory
         int placeholder=1;
         char placeholderStr[64];
         size_t n=0;
-        sql +="default,";
+        if(dirtyFlag_[0])
+        {
+            n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
+            sql.append(placeholderStr, n);
+        }
         if(dirtyFlag_[1])
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
@@ -337,11 +327,6 @@ class GameHistory
             sql.append(placeholderStr, n);
         }
         if(dirtyFlag_[7])
-        {
-            n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
-            sql.append(placeholderStr, n);
-        }
-        if(dirtyFlag_[8])
         {
             n = snprintf(placeholderStr,sizeof(placeholderStr),"$%d,",placeholder++);
             sql.append(placeholderStr, n);
