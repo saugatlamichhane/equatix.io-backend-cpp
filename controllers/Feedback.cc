@@ -6,7 +6,7 @@
 #include <models/Feedbacks.h>
 #include <trantor/utils/Logger.h>
 using namespace drogon::orm;
-using namespace drogon_model::equatix;
+using namespace drogon_model::neondb;
 
 Feedback::Feedback() { LOG_DEBUG << "Feedback controller initialized!"; }
 

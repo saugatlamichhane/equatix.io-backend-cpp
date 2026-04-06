@@ -8,7 +8,7 @@
 #include <models/Users.h>
 #include <trantor/utils/Logger.h>
 using namespace drogon::orm;
-using namespace drogon_model::equatix;
+using namespace drogon_model::neondb;
 
 Leaderboard::Leaderboard() {
   LOG_DEBUG << "Leaderboard controller initialized";

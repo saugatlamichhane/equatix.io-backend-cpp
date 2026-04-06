@@ -9,7 +9,7 @@
 #include <trantor/utils/Logger.h>
 
 using namespace drogon::orm;
-using namespace drogon_model::equatix;
+using namespace drogon_model::neondb;
 
 Player::Player() { LOG_INFO << "Player controller initialized"; }
 

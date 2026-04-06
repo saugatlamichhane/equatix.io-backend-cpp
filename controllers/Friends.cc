@@ -6,7 +6,7 @@
 #include <trantor/utils/Logger.h>
 
 using namespace drogon::orm;
-using namespace drogon_model::equatix;
+using namespace drogon_model::neondb;
 
 Friends::Friends() { LOG_DEBUG << "Friends controller initialized"; }
 

@@ -10,7 +10,7 @@
 #include <cmath>
 
 using namespace drogon::orm;
-using namespace drogon_model::equatix;
+using namespace drogon_model::neondb;
 
 Profile::Profile() { LOG_DEBUG << "Profile controller initialized"; }
 
