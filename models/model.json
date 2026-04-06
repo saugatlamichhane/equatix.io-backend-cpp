@@ -4,17 +4,17 @@
     //filename: sqlite3 db file name
     //"filename":"",
     //host: server address,localhost by default;
-    "host": "127.0.0.1",
+    "host": "ep-floral-bird-ahhv44r2-pooler.c-3.us-east-1.aws.neon.tech",
     //port: server port, 5432 by default;
     "port": 5432,
     //dbname: Database name;
-    "dbname": "equatix",
+    "dbname": "neondb",
     //schema: valid for postgreSQL, "public" by default;
     "schema": "public",
     //user: User name
-    "user": "myuser",
+    "user": "neondb_owner",
     //password or passwd: Password
-    "password": "mypassword",
+    "password": "npg_KN5gfTEjF8ZV",
     //client_encoding: The character set used by drogon_ctl. it is empty string by default which 
     //means use the default character set.
     //"client_encoding": "",

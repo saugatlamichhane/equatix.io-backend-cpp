@@ -568,3 +568,5 @@ FodyWeavers.xsd
 
 #change-summary
 change_summary.txt
+
+models/model.json
