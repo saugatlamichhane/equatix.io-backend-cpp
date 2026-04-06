@@ -4,7 +4,7 @@
 
 void GameController::getReplay(const drogon::HttpRequestPtr &req,
                                std::function<void(const drogon::HttpResponsePtr &)> &&callback,
-                               int gameId) {
+                               std::string gameId) {
     auto client = drogon::app().getDbClient();
     drogon::orm::Mapper<drogon_model::neondb::GameHistory> mapper(client);
 

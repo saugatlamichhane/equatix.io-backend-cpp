@@ -1,5 +1,6 @@
 #pragma once
 #include <drogon/HttpController.h>
+#include <string>
 
 class GameController : public drogon::HttpController<GameController> {
 public:
@@ -9,5 +10,5 @@ public:
 
     void getReplay(const drogon::HttpRequestPtr &req,
                    std::function<void(const drogon::HttpResponsePtr &)> &&callback,
-                   int gameId);
+                   std::string gameId);
 };
