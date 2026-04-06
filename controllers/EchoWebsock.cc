@@ -845,18 +845,31 @@ void EchoWebsock::saveGameReview(const RoomState &room, const std::string &winne
         move["side"] = m.playerSide;
         move["score"] = m.scoreGained;
         Json::Value tiles(Json::arrayValue);
-        for(const auto &t : m.tiles) tiles.append(t);
+        for(const auto &t : m.tiles) {
+            tiles.append(t);
+        }
         move["tiles"] = tiles;
         movesJson.append(move);
     }
 
     auto db = drogon::app().getDbClient();
+    
+    // SQL matches your 'neondb' schema: room_id, player1_uid, player2_uid, winner_uid, final_score_p1, final_score_p2, moves
     db->execSqlAsync(
-        "INSERT INTO game_history (room_id, player1_uid, player2_uid, winner_uid, moves) VALUES ($1, $2, $3, $4, $5)",
-        [](const drogon::orm::Result &r) { LOG_INFO << "Game review saved."; },
-        [](const drogon::orm::DrogonDbException &e) { LOG_ERROR << e.base().what(); },
-        room.challengeId, 
-        room.player1Uid, room.player2Uid, winnerUid,
-        Json::writeString(Json::StreamWriterBuilder(), movesJson)
+        "INSERT INTO game_history (room_id, player1_uid, player2_uid, winner_uid, final_score_p1, final_score_p2, moves) "
+        "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        [](const drogon::orm::Result &r) { 
+            LOG_INFO << "Game review successfully saved to game_history."; 
+        },
+        [](const drogon::orm::DrogonDbException &e) { 
+            LOG_ERROR << "Failed to save game review: " << e.base().what(); 
+        },
+        std::to_string(room.challengeId), // room_id (varchar 255)
+        room.player1Uid,                  // player1_uid
+        room.player2Uid,                  // player2_uid
+        winnerUid,                        // winner_uid
+        room.score1,                       // final_score_p1 (integer)
+        room.score2,                       // final_score_p2 (integer)
+        Json::writeString(Json::StreamWriterBuilder(), movesJson) // moves (jsonb)
     );
 }
