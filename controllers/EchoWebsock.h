@@ -6,6 +6,7 @@
 #include <drogon/utils/coroutine.h>
 #include <unordered_map>
 #include <utils/RoomState.h>
+#include <utils/ThreadPool.h>
 using namespace drogon;
 
 class EchoWebsock : public drogon::WebSocketController<EchoWebsock> {
@@ -22,6 +23,16 @@ public:
 private:
   PubSubService<std::string> chatRooms_;
   std::unordered_map<std::string, RoomState> rooms;
+
+  // Dedicated compute pool — bot AI runs here, never on the IO event loop.
+  // Sized to leave cores available for Drogon's IO threads.
+  // maxQueue=64: if 64 bot moves are already queued, new ones throw (backpressure).
+  ThreadPool botPool_{
+      "bot-compute",
+      std::max(1u, std::thread::hardware_concurrency() / 2),
+      /*maxQueue=*/64
+  };
+
   void startTurnTimer(const std::string &roomName);
   void broadcastState(const std::string &roomName);
   void handleForfeit(const std::string &roomName, int winnerSide,

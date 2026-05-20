@@ -809,41 +809,63 @@ void EchoWebsock::executeBotMove(const std::string &roomName) {
     if (it == rooms.end()) return;
     auto &room = it->second;
 
-    // 1. Get the move from your logic engine
-    // findBestMove needs to be defined in GameLogic.h/cc
-    auto botMove = GameLogic::findBestMove(room.state_, room.player2Rack);
+    // Snapshot the state the bot needs — immutable copies so the bot thread
+    // never touches live room state while the IO thread may also be reading it.
+    auto boardSnapshot = room.state_;
+    auto rackSnapshot  = room.player2Rack;
 
-    if (botMove.isValid) {
-        // Apply tiles to board
-        for (const auto &tile : botMove.placedTiles) {
-            room.state_.push_back(tile);
-        }
-        room.score2 += botMove.score;
-        room.passes = 0; // Reset pass counter on successful move
+    // Submit CPU-bound work to the dedicated compute pool.
+    // The IO event loop returns immediately — other WebSocket messages continue.
+    try {
+        botPool_.submit([this, roomName,
+                         board = std::move(boardSnapshot),
+                         rack  = std::move(rackSnapshot)]() mutable {
 
-        // Remove tiles from Bot Rack and draw new ones
-        for (const auto &val : botMove.usedValues) {
-            auto rackIt = std::find(room.player2Rack.begin(), room.player2Rack.end(), val);
-            if (rackIt != room.player2Rack.end()) room.player2Rack.erase(rackIt);
-        }
-        auto newTiles = drawTiles(room.tileBag, 7 - room.player2Rack.size());
-        room.player2Rack.insert(room.player2Rack.end(), newTiles.begin(), newTiles.end());
-    } else {
-        // Bot couldn't find a move, it passes
+            // ── Running on bot-compute thread, NOT the IO thread ──
+            BotMove botMove = GameLogic::findBestMove(board, rack);
+
+            // Post the result back to the IO thread — the only thread allowed
+            // to mutate room state. queueInLoop() is the thread-safe handoff.
+            drogon::app().getLoop()->queueInLoop(
+                [this, roomName, botMove = std::move(botMove)]() mutable {
+
+                    // ── Back on IO thread — safe to access rooms map ──
+                    auto roomIt = rooms.find(roomName);
+                    if (roomIt == rooms.end()) return;  // room closed while bot was thinking
+                    auto &r = roomIt->second;
+
+                    if (botMove.isValid) {
+                        for (const auto &tile : botMove.placedTiles)
+                            r.state_.push_back(tile);
+                        r.score2 += botMove.score;
+                        r.passes  = 0;
+
+                        for (const auto &val : botMove.usedValues) {
+                            auto rackIt = std::ranges::find(r.player2Rack, val);
+                            if (rackIt != r.player2Rack.end())
+                                r.player2Rack.erase(rackIt);
+                        }
+                        auto newTiles = drawTiles(r.tileBag,
+                                                  RoomState::RACK_SIZE - r.player2Rack.size());
+                        r.player2Rack.insert(r.player2Rack.end(),
+                                             newTiles.begin(), newTiles.end());
+                    } else {
+                        r.passes++;
+                        LOG_INFO << "Bot passed (no valid move) in room: " << roomName;
+                    }
+
+                    r.currentTurn = 1;
+                    broadcastState(roomName);
+                    startTurnTimer(roomName);
+                });
+        });
+    } catch (const std::runtime_error &e) {
+        // Queue was full — too many concurrent bot games, bot passes this turn
+        LOG_WARN << "BotPool queue full, bot passes: " << e.what();
         room.passes++;
-        LOG_INFO << "Bot could not find a valid move and passed.";
-    }
-
-    // 2. Hand turn back to human
-    room.currentTurn = 1;
-    
-    // 3. Update all clients and restart human's timer
-    broadcastState(roomName);
-    startTurnTimer(roomName);
-
-    // 4. Check if bot move ended the game
-    if (checkEndGame(room)) {
-        // Handle game over (Multiplayer check is already inside your win block)
+        room.currentTurn = 1;
+        broadcastState(roomName);
+        startTurnTimer(roomName);
     }
 }
 

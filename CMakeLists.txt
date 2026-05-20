@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.5)
 project(equatix-server CXX)
 
+# Export compile_commands.json so VSCode IntelliSense uses the actual
+# compiler flags (including -std=c++20) instead of guessing from system defaults.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 include(CheckIncludeFileCXX)
 
 check_include_file_cxx(any HAS_ANY)

@@ -1,0 +1,35 @@
+{
+  "name": "equatix-server (GCC 11 / Ubuntu 22.04)",
+
+  // Reuse your existing Dockerfile's builder stage so IntelliSense
+  // runs against the exact same compiler and headers as the real build.
+  "dockerfileContext": "..",
+  "dockerfilePath": "../Dockerfile",
+  "target": "builder",
+
+  // Mount the project into the container
+  "workspaceFolder": "/app",
+
+  // VSCode extensions to install inside the container
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "llvm-vs-code-extensions.vscode-clangd"
+      ],
+      "settings": {
+        "C_Cpp.default.cppStandard": "c++20",
+        "C_Cpp.default.intelliSenseMode": "linux-gcc-x64",
+        "C_Cpp.default.compilerPath": "/usr/bin/g++"
+      }
+    }
+  },
+
+  // Forward port so you can test the server from your browser
+  "forwardPorts": [5555],
+
+  // After container starts: configure cmake so compile_commands.json
+  // is generated (IntelliSense picks this up automatically)
+  "postCreateCommand": "mkdir -p build && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && ln -sf build/compile_commands.json compile_commands.json"
+}
