@@ -493,134 +493,143 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     }
   }
 }
+// Framework-mandated void signature — cannot be a coroutine directly.
+// We immediately hand off to the Task<> coroutine so the event loop is
+// never blocked waiting on Postgres.
 void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
                                       const WebSocketConnectionPtr &wsConnPtr) {
-  // write your application logic here
+  drogon::async_run(onNewConnectionAsync(req, wsConnPtr));
+}
+
+// The real connection logic lives here as a coroutine.
+// Every co_await suspends this function and returns control to the event loop
+// while Postgres is busy, so other connections are processed normally.
+drogon::Task<> EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
+                                                  WebSocketConnectionPtr wsConnPtr) {
   LOG_DEBUG << "new websocket connection!";
+
   Subscriber s;
   s.chatRoomName_ = req->getParameter("room_name");
-  auto uid = req->getParameter("uid");
+  const std::string uid = req->getParameter("uid");
   LiveStatsController::incrementActivePlayers();
-  auto params = req->getParameters();
 
   auto &room = rooms[s.chatRoomName_];
   room.isBotGame = req->getParameter("isBot") == "1";
-  
-  if(!room.isBotGame && s.chatRoomName_.find("challenge") != std::string::npos) {
-    try {
-      room.challengeId = std::stoi(req->getParameter("room_name").substr(9));
 
-    } catch(...) {
+  if (!room.isBotGame &&
+      s.chatRoomName_.find("challenge") != std::string::npos) {
+    try {
+      room.challengeId =
+          std::stoi(req->getParameter("room_name").substr(9));
+    } catch (...) {
       room.challengeId = -1;
       LOG_WARN << "Invalid challenge room name: " << s.chatRoomName_;
     }
   } else {
     room.challengeId = -1;
   }
+
   Json::Value init;
   init["type"] = "init";
   init["turn"] = room.currentTurn;
-
   init["room name"] = s.chatRoomName_;
-  auto clientPtr = drogon::app().getDbClient();
+
+  auto db = drogon::app().getDbClient();
+
+  // Helper lambda: fetches one player row, non-blocking.
+  // co_await suspends HERE — event loop stays free during the DB round trip.
+  auto fetchPlayer = [&](const std::string &playerUid)
+      -> drogon::Task<drogon::orm::Result> {
+    co_return co_await db->execSqlCoro(
+        "SELECT name, photo, elo FROM users WHERE uid=$1", playerUid);
+  };
+
   if (!room.player1Conn) {
     room.tileBag = createTileBag();
     room.player1Conn = wsConnPtr;
     room.player1Uid = uid;
+
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 7);
     room.player1Rack = rack;
-    for (auto tile : rack) {
-      init["rack"].append(tile);
-    }
+    for (auto &tile : rack) init["rack"].append(tile);
     init["sent"] = 1;
-    auto result = clientPtr->execSqlSync(
-        "SELECT name, photo, elo FROM users WHERE uid=$1", uid);
+
+    // ── Was execSqlSync (blocked event loop). Now suspends cleanly. ──
+    auto result = co_await fetchPlayer(uid);
     if (result.empty()) {
-        LOG_ERROR << "User not found in database: " << uid;
-        // Handle error - perhaps disconnect or send error message
-        return;
+      LOG_ERROR << "User not found: " << uid;
+      wsConnPtr->forceClose();
+      co_return;
     }
-    std::string name = result[0]["name"].as<std::string>();
-    std::string photo = result[0]["photo"].as<std::string>();
-    double elo = result[0]["elo"].as<double>();
-    init["name"] = name;
-    init["photo"] = photo;
-    init["elo"] = elo;
+    init["name"]  = result[0]["name"].as<std::string>();
+    init["photo"] = result[0]["photo"].as<std::string>();
+    init["elo"]   = result[0]["elo"].as<double>();
     room.player2Conn = nullptr;
+
   } else if (room.player2Conn == nullptr) {
     room.player2Conn = wsConnPtr;
     room.player2Uid = uid;
+
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 7);
     room.player2Rack = rack;
-    for (auto tile : rack) {
-      init["rack"].append(tile);
-    }
+    for (auto &tile : rack) init["rack"].append(tile);
     init["sent"] = 2;
-    auto result = clientPtr->execSqlSync(
-        "SELECT name, photo, elo FROM users WHERE uid=$1", uid);
-    if (result.empty()) {
-        LOG_ERROR << "User not found in database: " << uid;
-        // Handle error - perhaps disconnect or send error message
-        return;
+
+    // ── Three separate execSqlSync calls collapsed into three co_awaits. ──
+    auto r  = co_await fetchPlayer(uid);
+    auto r1 = co_await fetchPlayer(room.player1Uid);
+    auto r2 = co_await fetchPlayer(room.player2Uid);
+
+    if (r.empty() || r1.empty() || r2.empty()) {
+      LOG_ERROR << "One or more players not found in DB";
+      wsConnPtr->forceClose();
+      co_return;
     }
-    std::string name = result[0]["name"].as<std::string>();
-    std::string photo = result[0]["photo"].as<std::string>();
-    double elo = result[0]["elo"].as<double>();
-    init["name"] = name;
-    init["photo"] = photo;
-    init["elo"] = elo;
+
+    init["name"]  = r[0]["name"].as<std::string>();
+    init["photo"] = r[0]["photo"].as<std::string>();
+    init["elo"]   = r[0]["elo"].as<double>();
 
     Json::Value opp1, opp2;
-    auto r1 = clientPtr->execSqlSync(
-        "SELECT name, photo, elo FROM users WHERE uid=$1", room.player1Uid);
-    auto r2 = clientPtr->execSqlSync(
-        "SELECT name, photo, elo FROM users WHERE uid=$1", room.player2Uid);
-    if (r1.empty() || r2.empty()) {
-        LOG_ERROR << "One or both players not found in database";
-        return;
-    }
     opp1["type"] = "opponent_info";
-    opp1["name"] = r1[0]["name"].as<std::string>();
+    opp1["name"]  = r1[0]["name"].as<std::string>();
     opp1["photo"] = r1[0]["photo"].as<std::string>();
-    opp1["elo"] = r1[0]["elo"].as<double>();
+    opp1["elo"]   = r1[0]["elo"].as<double>();
 
     opp2["type"] = "opponent_info";
-    opp2["name"] = r2[0]["name"].as<std::string>();
+    opp2["name"]  = r2[0]["name"].as<std::string>();
     opp2["photo"] = r2[0]["photo"].as<std::string>();
-    opp2["elo"] = r2[0]["elo"].as<double>();
+    opp2["elo"]   = r2[0]["elo"].as<double>();
 
-    room.player1Conn->send(
-        Json::writeString(Json::StreamWriterBuilder(), opp2));
-    room.player2Conn->send(
-        Json::writeString(Json::StreamWriterBuilder(), opp1));
+    static const Json::StreamWriterBuilder swb;
+    room.player1Conn->send(Json::writeString(swb, opp2));
+    room.player2Conn->send(Json::writeString(swb, opp1));
 
     room.currentTurn = 1;
     startTurnTimer(s.chatRoomName_);
-  } else {
 
+  } else {
     init["error"] = "2 Players already connected";
-    wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
+    wsConnPtr->send(
+        Json::writeString(Json::StreamWriterBuilder(), init));
     s.id_ = chatRooms_.subscribe(
         s.chatRoomName_,
-        [wsConnPtr](const std::string &topic, const std::string &message) {
-          (void)topic;
-          wsConnPtr->send(message);
+        [wsConnPtr](const std::string &, const std::string &msg) {
+          wsConnPtr->send(msg);
         });
     wsConnPtr->setContext(std::make_shared<Subscriber>(std::move(s)));
     wsConnPtr->forceClose();
-    return;
+    co_return;
   }
 
   s.id_ = chatRooms_.subscribe(
       s.chatRoomName_,
-      [wsConnPtr](const std::string &topic, const std::string &message) {
-        (void)topic;
-        wsConnPtr->send(message);
+      [wsConnPtr](const std::string &, const std::string &msg) {
+        wsConnPtr->send(msg);
       });
   wsConnPtr->setContext(std::make_shared<Subscriber>(std::move(s)));
-  initBoardMultipliers();
   wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
 }
 void EchoWebsock::handleConnectionClosed(

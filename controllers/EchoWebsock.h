@@ -3,6 +3,7 @@
 #include <drogon/HttpAppFramework.h>
 #include <drogon/PubSubService.h>
 #include <drogon/WebSocketController.h>
+#include <drogon/utils/coroutine.h>
 #include <unordered_map>
 #include <utils/RoomState.h>
 using namespace drogon;
@@ -30,4 +31,10 @@ private:
                         const std::string &loserUid, bool isForfeit);
   void executeBotMove(const std::string &roomName);
   void saveGameReview(const RoomState &room, const std::string &winnerUid);
+
+  // Coroutine: does the real async work for handleNewConnection.
+  // handleNewConnection() is a plain void (framework-mandated signature),
+  // so we bridge into this Task<> via drogon::async_run().
+  drogon::Task<> onNewConnectionAsync(HttpRequestPtr req,
+                                      WebSocketConnectionPtr wsConnPtr);
 };
