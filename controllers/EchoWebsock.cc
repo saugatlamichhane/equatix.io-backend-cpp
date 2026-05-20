@@ -498,7 +498,9 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
 // never blocked waiting on Postgres.
 void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
                                       const WebSocketConnectionPtr &wsConnPtr) {
-  drogon::async_run(onNewConnectionAsync(req, wsConnPtr));
+  drogon::async_run([req, wsConnPtr, this] () -> drogon::Task<> {
+    co_await onNewConnectionAsync(req, wsConnPtr);
+  });
 }
 
 // The real connection logic lives here as a coroutine.
@@ -859,13 +861,8 @@ void EchoWebsock::executeBotMove(const std::string &roomName) {
                     startTurnTimer(roomName);
                 });
         });
-    } catch (const std::runtime_error &e) {
-        // Queue was full — too many concurrent bot games, bot passes this turn
-        LOG_WARN << "BotPool queue full, bot passes: " << e.what();
-        room.passes++;
-        room.currentTurn = 1;
-        broadcastState(roomName);
-        startTurnTimer(roomName);
+    } catch (const std::exception &e) {
+        LOG_ERROR << "Failed to submit bot move task: " << e.what();
     }
 }
 

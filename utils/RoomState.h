@@ -38,7 +38,10 @@ struct RoomState {
   bool isP1Connected = true;
   bool isP2Connected = true;
   bool isBotGame = false;
-  const double TURN_TIME_LIMIT = 45.0; // seconds
-  const double RECONNECT_TIME_LIMIT = 30.0; // seconds
+  static constexpr double TURN_TIME_LIMIT = 45.0; // seconds
+  static constexpr double RECONNECT_TIME_LIMIT = 30.0; // seconds
+  static constexpr int BOARD_SIZE = 15;
+  static constexpr int RACK_SIZE = 7;
+  static constexpr int CENTER = 8;
   std::vector<MoveRecord> moveHistory;
 };

@@ -5,7 +5,6 @@
 // NOT available on Apple Clang 14 (macOS local dev); build via Docker.
 
 #include <atomic>
-#include <concepts>
 #include <condition_variable>
 #include <functional>
 #include <future>
@@ -34,12 +33,6 @@
 
 class ThreadPool {
 public:
-    // Constraint: only accept zero-argument void callables.
-    // Callers must capture everything they need by value before submitting.
-    template<typename F>
-    concept Task = std::invocable<F> &&
-                   std::same_as<std::invoke_result_t<F>, void>;
-
     // name     : prefix for thread names, visible in htop/perf/gdb
     // nThreads : dedicated worker count (default: half of hardware threads,
     //            leaving the other half for Drogon's IO loops)
@@ -77,7 +70,7 @@ public:
     // Submit a fire-and-forget task.
     // Throws std::runtime_error if pool is shutting down or queue is full.
     // The caller handles the exception as a backpressure signal (e.g. bot passes).
-    template<Task F>
+    template<typename F>
     void submit(F&& f) {
         {
             std::unique_lock lock(mu_);
@@ -93,7 +86,7 @@ public:
 
     // Submit a task and get a std::future for its return value.
     // Use when the caller needs the result (e.g. unit tests, sync operations).
-    template<std::invocable F>
+    template<typename F>
     [[nodiscard]] auto submitWithResult(F&& f)
         -> std::future<std::invoke_result_t<F>>
     {
