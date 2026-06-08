@@ -570,3 +570,6 @@ FodyWeavers.xsd
 change_summary.txt
 
 models/model.json
+
+.devcontainer
+.DS_Store
