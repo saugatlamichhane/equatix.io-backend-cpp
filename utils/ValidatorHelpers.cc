@@ -39,7 +39,7 @@ bool touchesExisting(const std::vector<Json::Value> &state,
 }
 
 bool isOccupied(const std::vector<Json::Value>& current_,
-                conststd::vector<Json::Value>& state_, int row, int col) {
+                const std::vector<Json::Value>& state_, int row, int col) {
   for (auto &item : current_) {
     if (item["row"].asInt() == row && item["col"].asInt() == col) {
       return true;
