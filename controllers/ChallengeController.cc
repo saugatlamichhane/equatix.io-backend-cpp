@@ -2,11 +2,11 @@
 #include <drogon/drogon.h>
 #include <drogon/orm/Exception.h>
 #include <drogon/orm/Result.h>
+#include <drogon/utils/coroutine.h>
 #include <json/json.h>
+#include <memory>
 #include <optional>
 #include <utility>
-#include <memory>
-#include <drogon/utils/coroutine.h>
 
 using namespace drogon;
 using namespace drogon::orm;
@@ -48,13 +48,16 @@ void ChallengeController::sendChallenge(
   }
 
   // move callback into coroutine
-  auto cb = std::make_shared<std::function<void(const HttpResponsePtr &)>>(std::move(callback));
+  auto cb = std::make_shared<std::function<void(const HttpResponsePtr &)>>(
+      std::move(callback));
   auto db = app().getDbClient();
   std::string opp = opponentId;
 
-  drogon::async_run([db, challengerId = std::move(challengerId), opp = std::move(opp), cb]() -> drogon::Task<> {
+  drogon::async_run([db, challengerId = std::move(challengerId),
+                     opp = std::move(opp), cb]() -> drogon::Task<> {
     try {
-      auto r = co_await db->execSqlCoro("SELECT uid FROM users WHERE uid = $1 LIMIT 1", opp);
+      auto r = co_await db->execSqlCoro(
+          "SELECT uid FROM users WHERE uid = $1 LIMIT 1", opp);
       if (r.empty()) {
         (*cb)(makeErrorResponse("Opponent not found."));
         co_return;
@@ -94,11 +97,17 @@ void ChallengeController::acceptChallenge(
   }
   std::string receiverId = *uidOpt;
   auto db = app().getDbClient();
-  auto cb = std::make_shared<std::function<void(const HttpResponsePtr & )>>(std::move(callback));
+  auto cb = std::make_shared<std::function<void(const HttpResponsePtr &)>>(
+      std::move(callback));
 
-  drogon::async_run([db, challengeId = std::string(challengeId), receiverId = std::move(receiverId), cb]() -> drogon::Task<> {
+  drogon::async_run([db, challengeId = std::string(challengeId),
+                     receiverId = std::move(receiverId),
+                     cb]() -> drogon::Task<> {
     try {
-      auto r = co_await db->execSqlCoro("UPDATE challenges SET status='accepted' WHERE id=$1 AND opponent_id=$2 RETURNING *", challengeId, receiverId);
+      auto r =
+          co_await db->execSqlCoro("UPDATE challenges SET status='accepted' "
+                                   "WHERE id=$1 AND opponent_id=$2 RETURNING *",
+                                   challengeId, receiverId);
       Json::Value res;
       if (r.empty())
         res["error"] = "Challenge not found or unauthorized";
@@ -123,11 +132,17 @@ void ChallengeController::rejectChallenge(
   }
   std::string receiverId = *uidOpt;
   auto db = app().getDbClient();
-  auto cb = std::make_shared<std::function<void(const HttpResponsePtr & )>>(std::move(callback));
+  auto cb = std::make_shared<std::function<void(const HttpResponsePtr &)>>(
+      std::move(callback));
 
-  drogon::async_run([db, challengeId = std::string(challengeId), receiverId = std::move(receiverId), cb]() -> drogon::Task<> {
+  drogon::async_run([db, challengeId = std::string(challengeId),
+                     receiverId = std::move(receiverId),
+                     cb]() -> drogon::Task<> {
     try {
-      auto r = co_await db->execSqlCoro("UPDATE challenges SET status='rejected' WHERE id=$1 AND opponent_id=$2 RETURNING *", challengeId, receiverId);
+      auto r =
+          co_await db->execSqlCoro("UPDATE challenges SET status='rejected' "
+                                   "WHERE id=$1 AND opponent_id=$2 RETURNING *",
+                                   challengeId, receiverId);
       Json::Value res;
       if (r.empty())
         res["error"] = "Challenge not found or unauthorized";
@@ -152,11 +167,17 @@ void ChallengeController::cancelSentChallenge(
   }
   std::string challengerId = *uidOpt;
   auto db = app().getDbClient();
-  auto cb = std::make_shared<std::function<void(const HttpResponsePtr & )>>(std::move(callback));
+  auto cb = std::make_shared<std::function<void(const HttpResponsePtr &)>>(
+      std::move(callback));
 
-  drogon::async_run([db, challengeId = std::string(challengeId), challengerId = std::move(challengerId), cb]() -> drogon::Task<> {
+  drogon::async_run([db, challengeId = std::string(challengeId),
+                     challengerId = std::move(challengerId),
+                     cb]() -> drogon::Task<> {
     try {
-      auto r = co_await db->execSqlCoro("UPDATE challenges SET status='cancelled' WHERE id=$1 AND challenger_id=$2 AND status='pending' RETURNING *", challengeId, challengerId);
+      auto r = co_await db->execSqlCoro(
+          "UPDATE challenges SET status='cancelled' WHERE id=$1 AND "
+          "challenger_id=$2 AND status='pending' RETURNING *",
+          challengeId, challengerId);
       Json::Value res;
       if (r.empty()) {
         res["error"] = "Challenge not found, already started, or unauthorized";
@@ -181,11 +202,13 @@ void ChallengeController::listSentChallenges(
   }
   std::string userId = *uidOpt;
   auto db = app().getDbClient();
-  auto cb = std::make_shared<std::function<void(const HttpResponsePtr & )>>(std::move(callback));
+  auto cb = std::make_shared<std::function<void(const HttpResponsePtr &)>>(
+      std::move(callback));
 
   drogon::async_run([db, userId = std::move(userId), cb]() -> drogon::Task<> {
     try {
-      auto r = co_await db->execSqlCoro("SELECT * FROM challenges WHERE challenger_id = $1", userId);
+      auto r = co_await db->execSqlCoro(
+          "SELECT * FROM challenges WHERE challenger_id = $1", userId);
       Json::Value res;
       Json::Value challenges(Json::arrayValue);
 
@@ -218,11 +241,13 @@ void ChallengeController::listReceivedChallenges(
   }
   std::string userId = *uidOpt;
   auto db = app().getDbClient();
-  auto cb = std::make_shared<std::function<void(const HttpResponsePtr & )>>(std::move(callback));
+  auto cb = std::make_shared<std::function<void(const HttpResponsePtr &)>>(
+      std::move(callback));
 
   drogon::async_run([db, userId = std::move(userId), cb]() -> drogon::Task<> {
     try {
-      auto r = co_await db->execSqlCoro("SELECT * FROM challenges WHERE opponent_id = $1", userId);
+      auto r = co_await db->execSqlCoro(
+          "SELECT * FROM challenges WHERE opponent_id = $1", userId);
       Json::Value res;
       Json::Value challenges(Json::arrayValue);
 

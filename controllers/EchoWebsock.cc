@@ -3,8 +3,8 @@
 #include "../utils/Board.h"
 #include "../utils/GameLogic.h"
 #include "../utils/RoomState.h"
-#include "../utils/ValidatorHelpers.h"
 #include "../utils/Subscriber.h"
+#include "../utils/ValidatorHelpers.h"
 #include "LiveStatsController.h"
 #include <algorithm>
 #include <drogon/HttpTypes.h>
@@ -12,6 +12,7 @@
 #include <drogon/WebSocketConnection.h>
 #include <drogon/orm/Exception.h>
 #include <drogon/orm/Mapper.h>
+#include <drogon/utils/coroutine.h>
 #include <memory>
 #include <random>
 #include <stack>
@@ -142,7 +143,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         room.currentTurn = 2;
       }
       startTurnTimer(s.chatRoomName_);
-      if(room.isBotGame && room.currentTurn == 2) {
+      if (room.isBotGame && room.currentTurn == 2) {
         executeBotMove(s.chatRoomName_);
       }
 
@@ -156,7 +157,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         room.currentTurn = 2;
       }
       startTurnTimer(s.chatRoomName_);
-        if(room.isBotGame && room.currentTurn == 2) {
+      if (room.isBotGame && room.currentTurn == 2) {
         executeBotMove(s.chatRoomName_);
       }
     } else if (msgType == "evaluate") {
@@ -283,7 +284,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       std::string jsonStr = Json::writeString(wbuilder, response);
       chatRooms_.publish(s.chatRoomName_, jsonStr);
 
-      if(room.isBotGame && room.currentTurn == 2) {
+      if (room.isBotGame && room.currentTurn == 2) {
         executeBotMove(s.chatRoomName_);
       }
 
@@ -390,15 +391,22 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         winner = 2;
       }
 
-      auto clientPtr = drogon::app().getDbClient();
+      auto db = drogon::app().getDbClient();
 
       if (room.challengeId != -1 && winner != 0) {
-        clientPtr->execSqlAsync(
-            "UPDATE challenges SET status='completed', winner=$1, completed_at "
-            "= now() WHERE id=$2",
-            [](const Result &) { LOG_INFO << "Challenge updated"; },
-            [](const DrogonDbException &e) { LOG_ERROR << e.base().what(); },
-            winner == 1 ? room.player1Uid : room.player2Uid, room.challengeId);
+        drogon::async_run([db, winner, room]() -> drogon::Task<> {
+          try {
+            co_await db->execSqlCoro(
+                "UPDATE challenges SET status='completed', winner=$1, "
+                "completed_at = now() WHERE id=$2",
+                winner == 1 ? room.player1Uid : room.player2Uid,
+                room.challengeId);
+            LOG_INFO << "Challenge updated";
+          } catch (const DrogonDbException &e) {
+            LOG_ERROR << e.base().what();
+          }
+          co_return;
+        });
       }
 
       winResponse["winner"] = winner;
@@ -419,76 +427,69 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       } else {
         // Draw case
         saveGameReview(room, "draw");
-        auto clientPtr = drogon::app().getDbClient();
+        auto db = drogon::app().getDbClient();
+
         if (room.challengeId != -1) {
-          clientPtr->execSqlAsync(
-              "UPDATE challenges SET status='completed', winner=NULL, "
-              "completed_at=now() WHERE id=$1",
-              [](const Result &) { LOG_INFO << "Challenge updated"; },
-              [](const DrogonDbException &e) { LOG_ERROR << e.base().what(); },
-              room.challengeId);
+          drogon::async_run([db, room]() -> drogon::Task<> {
+            try {
+              co_await db->execSqlCoro(
+                  "UPDATE challenges SET status='completed', winner=NULL, "
+                  "completed_at=now() WHERE id=$1",
+                  room.challengeId);
+              LOG_INFO << "Challenge updated";
+            } catch (const DrogonDbException &e) {
+              LOG_ERROR << e.base().what();
+            }
+            co_return;
+          });
         }
 
-        clientPtr->execSqlAsync(
-            "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
-            [clientPtr, room](const drogon::orm::Result &r) {
-              if (r.size() == 2) {
-                std::string uid1 = r[0]["uid"].as<std::string>();
-                std::string uid2 = r[1]["uid"].as<std::string>();
-                double elo1 = r[0]["elo"].as<double>();
-                double elo2 = r[1]["elo"].as<double>();
-                const double K = 32.0;
+        drogon::async_run([db, room]() -> drogon::Task<> {
+          try {
+            auto r = co_await db->execSqlCoro(
+                "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
+                room.player1Uid, room.player2Uid);
 
-                double expected1 =
-                    1.0 / (1.0 + pow(10.0, (elo2 - elo1) / 400.0));
-                double expected2 =
-                    1.0 / (1.0 + pow(10.0, (elo1 - elo2) / 400.0));
+            if (r.size() == 2) {
+              std::string uid1 = r[0]["uid"].as<std::string>();
+              std::string uid2 = r[1]["uid"].as<std::string>();
+              double elo1 = r[0]["elo"].as<double>();
+              double elo2 = r[1]["elo"].as<double>();
+              const double K = 32.0;
 
-                double newElo1 = elo1 + K * (0.5 - expected1);
-                double newElo2 = elo2 + K * (0.5 - expected2);
+              double expected1 = 1.0 / (1.0 + pow(10.0, (elo2 - elo1) / 400.0));
+              double expected2 = 1.0 / (1.0 + pow(10.0, (elo1 - elo2) / 400.0));
 
-                clientPtr->execSqlAsync(
-                    "UPDATE users SET gamesplayed = gamesplayed + 1, draws = "
-                    "draws + 1, elo=$1 WHERE uid=$2;",
-                    [](const drogon::orm::Result &) {}, // success callback
-                    [](const DrogonDbException &) {},   // error callback
-                    newElo1, uid1);
+              double newElo1 = elo1 + K * (0.5 - expected1);
+              double newElo2 = elo2 + K * (0.5 - expected2);
 
-                clientPtr->execSqlAsync(
-                    "UPDATE users SET gamesplayed = gamesplayed + 1, draws = "
-                    "draws + 1, elo=$1 WHERE uid=$2;",
-                    [](const drogon::orm::Result &) {},
-                    [](const DrogonDbException &) {}, newElo2, uid2);
+              co_await db->execSqlCoro(
+                  "UPDATE users SET gamesplayed = gamesplayed + 1, draws = "
+                  "draws + 1, elo=$1 WHERE uid=$2",
+                  newElo1, uid1);
 
-                clientPtr->execSqlAsync(
-                    "UPDATE stats SET current_win_streak = 0, best_elo = "
-                    "GREATEST(best_elo, $2) WHERE uid = $1",
-                    [uid1](const drogon::orm::Result &) {
-                      LOG_INFO << "Updated p1 stats(draw): " << uid1;
-                    },
-                    [](const DrogonDbException &e) {
-                      LOG_ERROR << "Failed to update p1 stats(draw): "
-                                << e.base().what();
-                    },
-                    uid1, newElo1);
+              co_await db->execSqlCoro(
+                  "UPDATE users SET gamesplayed = gamesplayed + 1, draws = "
+                  "draws + 1, elo=$1 WHERE uid=$2",
+                  newElo2, uid2);
 
-                clientPtr->execSqlAsync(
-                    "UPDATE stats SET current_win_streak = 0, best_elo = "
-                    "GREATEST(best_elo, $2) WHERE uid = $1",
-                    [uid2](const drogon::orm::Result &) {
-                      LOG_INFO << "Updated p2 stats(draw): " << uid2;
-                    },
-                    [](const DrogonDbException &e) {
-                      LOG_ERROR << "Failed to update p2 stats(draw): "
-                                << e.base().what();
-                    },
-                    uid2, newElo2);
-              }
-            },
-            [](const DrogonDbException &e) {
-              LOG_ERROR << "Failed to fetch Elo for draw: " << e.base().what();
-            },
-            room.player1Uid, room.player2Uid);
+              co_await db->execSqlCoro(
+                  "UPDATE stats SET current_win_streak = 0, best_elo = "
+                  "GREATEST(best_elo, $2) WHERE uid = $1",
+                  uid1, newElo1);
+              LOG_INFO << "Updated p1 stats(draw): " << uid1;
+
+              co_await db->execSqlCoro(
+                  "UPDATE stats SET current_win_streak = 0, best_elo = "
+                  "GREATEST(best_elo, $2) WHERE uid = $1",
+                  uid2, newElo2);
+              LOG_INFO << "Updated p2 stats(draw): " << uid2;
+            }
+          } catch (const DrogonDbException &e) {
+            LOG_ERROR << "Failed to handle draw: " << e.base().what();
+          }
+          co_return;
+        });
       }
     }
   }
@@ -498,7 +499,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
 // never blocked waiting on Postgres.
 void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
                                       const WebSocketConnectionPtr &wsConnPtr) {
-  drogon::async_run([req, wsConnPtr, this] () -> drogon::Task<> {
+  drogon::async_run([req, wsConnPtr, this]() -> drogon::Task<> {
     co_await onNewConnectionAsync(req, wsConnPtr);
   });
 }
@@ -506,8 +507,9 @@ void EchoWebsock::handleNewConnection(const HttpRequestPtr &req,
 // The real connection logic lives here as a coroutine.
 // Every co_await suspends this function and returns control to the event loop
 // while Postgres is busy, so other connections are processed normally.
-drogon::Task<> EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
-                                                  WebSocketConnectionPtr wsConnPtr) {
+drogon::Task<>
+EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
+                                  WebSocketConnectionPtr wsConnPtr) {
   LOG_DEBUG << "new websocket connection!";
 
   Subscriber s;
@@ -521,8 +523,7 @@ drogon::Task<> EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
   if (!room.isBotGame &&
       s.chatRoomName_.find("challenge") != std::string::npos) {
     try {
-      room.challengeId =
-          std::stoi(req->getParameter("room_name").substr(9));
+      room.challengeId = std::stoi(req->getParameter("room_name").substr(9));
     } catch (...) {
       room.challengeId = -1;
       LOG_WARN << "Invalid challenge room name: " << s.chatRoomName_;
@@ -540,8 +541,8 @@ drogon::Task<> EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
 
   // Helper lambda: fetches one player row, non-blocking.
   // co_await suspends HERE — event loop stays free during the DB round trip.
-  auto fetchPlayer = [&](const std::string &playerUid)
-      -> drogon::Task<drogon::orm::Result> {
+  auto fetchPlayer =
+      [&](const std::string &playerUid) -> drogon::Task<drogon::orm::Result> {
     co_return co_await db->execSqlCoro(
         "SELECT name, photo, elo FROM users WHERE uid=$1", playerUid);
   };
@@ -554,7 +555,8 @@ drogon::Task<> EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 7);
     room.player1Rack = rack;
-    for (auto &tile : rack) init["rack"].append(tile);
+    for (auto &tile : rack)
+      init["rack"].append(tile);
     init["sent"] = 1;
 
     // ── Was execSqlSync (blocked event loop). Now suspends cleanly. ──
@@ -564,9 +566,9 @@ drogon::Task<> EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
       wsConnPtr->forceClose();
       co_return;
     }
-    init["name"]  = result[0]["name"].as<std::string>();
+    init["name"] = result[0]["name"].as<std::string>();
     init["photo"] = result[0]["photo"].as<std::string>();
-    init["elo"]   = result[0]["elo"].as<double>();
+    init["elo"] = result[0]["elo"].as<double>();
     room.player2Conn = nullptr;
 
   } else if (room.player2Conn == nullptr) {
@@ -576,11 +578,12 @@ drogon::Task<> EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
     init["rack"] = Json::Value(Json::arrayValue);
     auto rack = drawTiles(room.tileBag, 7);
     room.player2Rack = rack;
-    for (auto &tile : rack) init["rack"].append(tile);
+    for (auto &tile : rack)
+      init["rack"].append(tile);
     init["sent"] = 2;
 
     // ── Three separate execSqlSync calls collapsed into three co_awaits. ──
-    auto r  = co_await fetchPlayer(uid);
+    auto r = co_await fetchPlayer(uid);
     auto r1 = co_await fetchPlayer(room.player1Uid);
     auto r2 = co_await fetchPlayer(room.player2Uid);
 
@@ -590,20 +593,20 @@ drogon::Task<> EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
       co_return;
     }
 
-    init["name"]  = r[0]["name"].as<std::string>();
+    init["name"] = r[0]["name"].as<std::string>();
     init["photo"] = r[0]["photo"].as<std::string>();
-    init["elo"]   = r[0]["elo"].as<double>();
+    init["elo"] = r[0]["elo"].as<double>();
 
     Json::Value opp1, opp2;
     opp1["type"] = "opponent_info";
-    opp1["name"]  = r1[0]["name"].as<std::string>();
+    opp1["name"] = r1[0]["name"].as<std::string>();
     opp1["photo"] = r1[0]["photo"].as<std::string>();
-    opp1["elo"]   = r1[0]["elo"].as<double>();
+    opp1["elo"] = r1[0]["elo"].as<double>();
 
     opp2["type"] = "opponent_info";
-    opp2["name"]  = r2[0]["name"].as<std::string>();
+    opp2["name"] = r2[0]["name"].as<std::string>();
     opp2["photo"] = r2[0]["photo"].as<std::string>();
-    opp2["elo"]   = r2[0]["elo"].as<double>();
+    opp2["elo"] = r2[0]["elo"].as<double>();
 
     static const Json::StreamWriterBuilder swb;
     room.player1Conn->send(Json::writeString(swb, opp2));
@@ -614,8 +617,7 @@ drogon::Task<> EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
 
   } else {
     init["error"] = "2 Players already connected";
-    wsConnPtr->send(
-        Json::writeString(Json::StreamWriterBuilder(), init));
+    wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
     s.id_ = chatRooms_.subscribe(
         s.chatRoomName_,
         [wsConnPtr](const std::string &, const std::string &msg) {
@@ -679,8 +681,9 @@ void EchoWebsock::startTurnTimer(const std::string &roomName) {
       r.currentTurn = current == 1 ? 2 : 1;
       broadcastState(roomName);
       startTurnTimer(roomName);
-      if(r.isBotGame && r.currentTurn == 2) {
-        LOG_INFO << "Bot's turn after timeout. Executing bot move for " << roomName;
+      if (r.isBotGame && r.currentTurn == 2) {
+        LOG_INFO << "Bot's turn after timeout. Executing bot move for "
+                 << roomName;
         executeBotMove(roomName);
       }
     }
@@ -724,23 +727,28 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
   chatRooms_.publish(roomName,
                      Json::writeString(Json::StreamWriterBuilder(), ovr));
 
-  if(room.isBotGame) {
+  if (room.isBotGame) {
     LOG_INFO << "Bot game - db update ignored.";
     return;
   }
   auto db = drogon::app().getDbClient();
-  LOG_INFO << "Forfeit triggered - Room: " << roomName << " | ChallengeID: " << cId << " | Winner: " << winnerUid;
-  db->execSqlAsync(
-      "UPDATE challenges SET status='forfeit' WHERE id=$1",
-      [this, winnerUid, loserUid](const Result &r) {
-        this->applyGameRewards(winnerUid, loserUid, true);
-        LOG_INFO << "Forfeit DB Callback - Rows affected: " << r.affectedRows();
-      },
-      [](const DrogonDbException &e) {
-        LOG_ERROR << "Failed to update challenge for forfeit: "
-                  << e.base().what();
-      },
-      room.challengeId);
+  LOG_INFO << "Forfeit triggered - Room: " << roomName
+           << " | ChallengeID: " << cId << " | Winner: " << winnerUid;
+
+  drogon::async_run([this, db, roomName, cId, winnerUid, loserUid,
+                     room]() -> drogon::Task<> {
+    try {
+      auto r = co_await db->execSqlCoro(
+          "UPDATE challenges SET status='forfeit' WHERE id=$1",
+          room.challengeId);
+      LOG_INFO << "Forfeit DB Callback - Rows affected: " << r.affectedRows();
+      this->applyGameRewards(winnerUid, loserUid, true);
+    } catch (const DrogonDbException &e) {
+      LOG_ERROR << "Failed to update challenge for forfeit: "
+                << e.base().what();
+    }
+    co_return;
+  });
 }
 
 void EchoWebsock::stopTimer(const std::string &roomName) {
@@ -755,149 +763,155 @@ void EchoWebsock::stopTimer(const std::string &roomName) {
   }
 }
 
-void EchoWebsock::applyGameRewards(const std::string &winnerUid, const std::string &loserUid, bool isForfeit) {
-  if(winnerUid == "BOT_AI" || loserUid == "BOT_AI") {
+void EchoWebsock::applyGameRewards(const std::string &winnerUid,
+                                   const std::string &loserUid,
+                                   bool isForfeit) {
+  if (winnerUid == "BOT_AI" || loserUid == "BOT_AI") {
     LOG_INFO << "Bot game - skipping Elo and stats update.";
     return;
   }
-  
+
   auto db = drogon::app().getDbClient();
 
-    db->execSqlAsync(
-        "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2",
-        [this, db, winnerUid, loserUid, isForfeit](const Result &r) {
-            if (r.size() != 2) return;
+  drogon::async_run([db, winnerUid, loserUid, isForfeit]() -> drogon::Task<> {
+    try {
+      auto r = co_await db->execSqlCoro(
+          "SELECT uid, elo FROM users WHERE uid=$1 OR uid=$2", winnerUid,
+          loserUid);
 
-            double wElo = 1000.0, lElo = 1000.0;
-            for (auto const &row : r) {
-                if (row["uid"].as<std::string>() == winnerUid) wElo = row["elo"].as<double>();
-                else lElo = row["elo"].as<double>();
-            }
+      if (r.size() != 2)
+        co_return;
 
-            const double K = 32.0;
-            double expectedWinner = 1.0 / (1.0 + pow(10.0, (lElo - wElo) / 400.0));
-            double eloChange = K * (1.0 - expectedWinner);
+      double wElo = 1000.0, lElo = 1000.0;
+      for (auto const &row : r) {
+        if (row["uid"].as<std::string>() == winnerUid)
+          wElo = row["elo"].as<double>();
+        else
+          lElo = row["elo"].as<double>();
+      }
 
-            // 1. Update Winner Table
-            db->execSqlAsync(
-                "UPDATE users SET elo = elo + $1, wins = wins + 1, gamesplayed = gamesplayed + 1 WHERE uid = $2",
-                [](const Result &) {}, [](const DrogonDbException &) {}, eloChange, winnerUid);
+      const double K = 32.0;
+      double expectedWinner = 1.0 / (1.0 + pow(10.0, (lElo - wElo) / 400.0));
+      double eloChange = K * (1.0 - expectedWinner);
 
-            // 2. Update Loser Table
-            db->execSqlAsync(
-                "UPDATE users SET elo = GREATEST(0, elo - $1), losses = losses + 1, gamesplayed = gamesplayed + 1 WHERE uid = $2",
-                [](const Result &) {}, [](const DrogonDbException &) {}, eloChange, loserUid);
+      co_await db->execSqlCoro(
+          "UPDATE users SET elo = elo + $1, wins = wins + 1, gamesplayed = "
+          "gamesplayed + 1 WHERE uid = $2",
+          eloChange, winnerUid);
 
-            // 3. CONSISTENCY FIX: Update Stats Table for both
-            db->execSqlAsync(
-                "UPDATE stats SET current_win_streak = current_win_streak + 1, "
-                "best_win_streak = GREATEST(best_win_streak, current_win_streak + 1), "
-                "best_elo = GREATEST(best_elo, (SELECT elo FROM users WHERE uid=$1)) WHERE uid = $1",
-                [](const Result &) {}, [](const DrogonDbException &) {}, winnerUid);
+      co_await db->execSqlCoro(
+          "UPDATE users SET elo = GREATEST(0, elo - $1), losses = losses + 1, "
+          "gamesplayed = gamesplayed + 1 WHERE uid = $2",
+          eloChange, loserUid);
 
-            db->execSqlAsync(
-                "UPDATE stats SET current_win_streak = 0 WHERE uid = $1",
-                [](const Result &) {}, [](const DrogonDbException &) {}, loserUid);
+      co_await db->execSqlCoro(
+          "UPDATE stats SET current_win_streak = current_win_streak + 1, "
+          "best_win_streak = GREATEST(best_win_streak, current_win_streak + "
+          "1), best_elo = GREATEST(best_elo, (SELECT elo FROM users WHERE "
+          "uid=$1)) WHERE uid = $1",
+          winnerUid);
 
-            LOG_INFO << "Consistently updated stats for " << (isForfeit ? "forfeit" : "normal") << " win.";
-        },
-        [](const DrogonDbException &e) { LOG_ERROR << e.base().what(); },
-        winnerUid, loserUid
-    );
+      co_await db->execSqlCoro(
+          "UPDATE stats SET current_win_streak = 0 WHERE uid = $1", loserUid);
+
+      LOG_INFO << "Consistently updated stats for "
+               << (isForfeit ? "forfeit" : "normal") << " win.";
+    } catch (const DrogonDbException &e) {
+      LOG_ERROR << "Failed to apply game rewards: " << e.base().what();
+    }
+    co_return;
+  });
 }
 
 void EchoWebsock::executeBotMove(const std::string &roomName) {
-    auto it = rooms.find(roomName);
-    if (it == rooms.end()) return;
-    auto &room = it->second;
+  auto it = rooms.find(roomName);
+  if (it == rooms.end())
+    return;
+  auto &room = it->second;
 
-    // Snapshot the state the bot needs — immutable copies so the bot thread
-    // never touches live room state while the IO thread may also be reading it.
-    auto boardSnapshot = room.state_;
-    auto rackSnapshot  = room.player2Rack;
+  // Snapshot the state the bot needs — immutable copies so the bot thread
+  // never touches live room state while the IO thread may also be reading it.
+  auto boardSnapshot = room.state_;
+  auto rackSnapshot = room.player2Rack;
 
-    // Submit CPU-bound work to the dedicated compute pool.
-    // The IO event loop returns immediately — other WebSocket messages continue.
-    try {
-        botPool_.submit([this, roomName,
-                         board = std::move(boardSnapshot),
-                         rack  = std::move(rackSnapshot)]() mutable {
+  // Submit CPU-bound work to the dedicated compute pool.
+  // The IO event loop returns immediately — other WebSocket messages continue.
+  try {
+    botPool_.submit([this, roomName, board = std::move(boardSnapshot),
+                     rack = std::move(rackSnapshot)]() mutable {
+      // ── Running on bot-compute thread, NOT the IO thread ──
+      BotMove botMove = GameLogic::findBestMove(board, rack);
 
-            // ── Running on bot-compute thread, NOT the IO thread ──
-            BotMove botMove = GameLogic::findBestMove(board, rack);
+      // Post the result back to the IO thread — the only thread allowed
+      // to mutate room state. queueInLoop() is the thread-safe handoff.
+      drogon::app().getLoop()->queueInLoop(
+          [this, roomName, botMove = std::move(botMove)]() mutable {
+            // ── Back on IO thread — safe to access rooms map ──
+            auto roomIt = rooms.find(roomName);
+            if (roomIt == rooms.end())
+              return; // room closed while bot was thinking
+            auto &r = roomIt->second;
 
-            // Post the result back to the IO thread — the only thread allowed
-            // to mutate room state. queueInLoop() is the thread-safe handoff.
-            drogon::app().getLoop()->queueInLoop(
-                [this, roomName, botMove = std::move(botMove)]() mutable {
+            if (botMove.isValid) {
+              for (const auto &tile : botMove.placedTiles)
+                r.state_.push_back(tile);
+              r.score2 += botMove.score;
+              r.passes = 0;
 
-                    // ── Back on IO thread — safe to access rooms map ──
-                    auto roomIt = rooms.find(roomName);
-                    if (roomIt == rooms.end()) return;  // room closed while bot was thinking
-                    auto &r = roomIt->second;
+              for (const auto &val : botMove.usedValues) {
+                auto rackIt = std::ranges::find(r.player2Rack, val);
+                if (rackIt != r.player2Rack.end())
+                  r.player2Rack.erase(rackIt);
+              }
+              auto newTiles = drawTiles(r.tileBag, RoomState::RACK_SIZE -
+                                                       r.player2Rack.size());
+              r.player2Rack.insert(r.player2Rack.end(), newTiles.begin(),
+                                   newTiles.end());
+            } else {
+              r.passes++;
+              LOG_INFO << "Bot passed (no valid move) in room: " << roomName;
+            }
 
-                    if (botMove.isValid) {
-                        for (const auto &tile : botMove.placedTiles)
-                            r.state_.push_back(tile);
-                        r.score2 += botMove.score;
-                        r.passes  = 0;
-
-                        for (const auto &val : botMove.usedValues) {
-                            auto rackIt = std::ranges::find(r.player2Rack, val);
-                            if (rackIt != r.player2Rack.end())
-                                r.player2Rack.erase(rackIt);
-                        }
-                        auto newTiles = drawTiles(r.tileBag,
-                                                  RoomState::RACK_SIZE - r.player2Rack.size());
-                        r.player2Rack.insert(r.player2Rack.end(),
-                                             newTiles.begin(), newTiles.end());
-                    } else {
-                        r.passes++;
-                        LOG_INFO << "Bot passed (no valid move) in room: " << roomName;
-                    }
-
-                    r.currentTurn = 1;
-                    broadcastState(roomName);
-                    startTurnTimer(roomName);
-                });
-        });
-    } catch (const std::exception &e) {
-        LOG_ERROR << "Failed to submit bot move task: " << e.what();
-    }
+            r.currentTurn = 1;
+            broadcastState(roomName);
+            startTurnTimer(roomName);
+          });
+    });
+  } catch (const std::exception &e) {
+    LOG_ERROR << "Failed to submit bot move task: " << e.what();
+  }
 }
 
-void EchoWebsock::saveGameReview(const RoomState &room, const std::string &winnerUid) {
-    Json::Value movesJson(Json::arrayValue);
-    for (const auto &m : room.moveHistory) {
-        Json::Value move;
-        move["side"] = m.playerSide;
-        move["score"] = m.scoreGained;
-        Json::Value tiles(Json::arrayValue);
-        for(const auto &t : m.tiles) {
-            tiles.append(t);
-        }
-        move["tiles"] = tiles;
-        movesJson.append(move);
+void EchoWebsock::saveGameReview(const RoomState &room,
+                                 const std::string &winnerUid) {
+  Json::Value movesJson(Json::arrayValue);
+  for (const auto &m : room.moveHistory) {
+    Json::Value move;
+    move["side"] = m.playerSide;
+    move["score"] = m.scoreGained;
+    Json::Value tiles(Json::arrayValue);
+    for (const auto &t : m.tiles) {
+      tiles.append(t);
     }
+    move["tiles"] = tiles;
+    movesJson.append(move);
+  }
 
-    auto db = drogon::app().getDbClient();
-    
-    // SQL matches your 'neondb' schema: room_id, player1_uid, player2_uid, winner_uid, final_score_p1, final_score_p2, moves
-    db->execSqlAsync(
-        "INSERT INTO game_history (room_id, player1_uid, player2_uid, winner_uid, final_score_p1, final_score_p2, moves) "
-        "VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        [](const drogon::orm::Result &r) { 
-            LOG_INFO << "Game review successfully saved to game_history."; 
-        },
-        [](const drogon::orm::DrogonDbException &e) { 
-            LOG_ERROR << "Failed to save game review: " << e.base().what(); 
-        },
-        std::to_string(room.challengeId), // room_id (varchar 255)
-        room.player1Uid,                  // player1_uid
-        room.player2Uid,                  // player2_uid
-        winnerUid,                        // winner_uid
-        room.score1,                       // final_score_p1 (integer)
-        room.score2,                       // final_score_p2 (integer)
-        Json::writeString(Json::StreamWriterBuilder(), movesJson) // moves (jsonb)
-    );
+  auto db = drogon::app().getDbClient();
+
+  drogon::async_run([db, room, winnerUid, movesJson]() -> drogon::Task<> {
+    try {
+      co_await db->execSqlCoro(
+          "INSERT INTO game_history (room_id, player1_uid, player2_uid, "
+          "winner_uid, final_score_p1, final_score_p2, moves) VALUES ($1, $2, "
+          "$3, $4, $5, $6, $7)",
+          std::to_string(room.challengeId), room.player1Uid, room.player2Uid,
+          winnerUid, room.score1, room.score2,
+          Json::writeString(Json::StreamWriterBuilder(), movesJson));
+      LOG_INFO << "Game review successfully saved to game_history.";
+    } catch (const drogon::orm::DrogonDbException &e) {
+      LOG_ERROR << "Failed to save game review: " << e.base().what();
+    }
+    co_return;
+  });
 }

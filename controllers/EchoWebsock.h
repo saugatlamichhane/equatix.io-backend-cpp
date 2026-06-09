@@ -26,12 +26,11 @@ private:
 
   // Dedicated compute pool — bot AI runs here, never on the IO event loop.
   // Sized to leave cores available for Drogon's IO threads.
-  // maxQueue=64: if 64 bot moves are already queued, new ones throw (backpressure).
-  ThreadPool botPool_{
-      "bot-compute",
-      std::max(1u, std::thread::hardware_concurrency() / 2),
-      /*maxQueue=*/64
-  };
+  // maxQueue=64: if 64 bot moves are already queued, new ones throw
+  // (backpressure).
+  ThreadPool botPool_{"bot-compute",
+                      std::max(1u, std::thread::hardware_concurrency() / 2),
+                      /*maxQueue=*/64};
 
   void startTurnTimer(const std::string &roomName);
   void broadcastState(const std::string &roomName);
