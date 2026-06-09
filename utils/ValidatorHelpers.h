@@ -7,11 +7,11 @@
 bool touchesCenter(const std::vector<Json::Value> &current);
 bool touchesExisting(const std::vector<Json::Value> &state,
                      const std::vector<Json::Value> &current);
-bool isOccupied(std::vector<Json::Value> current_,
-                std::vector<Json::Value> state_, int row, int col);
-bool isStraightLine(std::vector<Json::Value> current_, int row, int col);
-bool isContiguous(std::vector<Json::Value> state,
-                  std::vector<Json::Value> current, int row, int col);
+bool isOccupied(const std::vector<Json::Value>& current_,
+                const std::vector<Json::Value>& state_, int row, int col);
+bool isStraightLine(const std::vector<Json::Value>& current_, int row, int col);
+bool isContiguous(const std::vector<Json::Value>& state,
+                  const std::vector<Json::Value>& current, int row, int col);
 std::vector<std::vector<Json::Value>>
 getAffectedEquations(const std::vector<Json::Value> &state,
                      const std::vector<Json::Value> &current);
