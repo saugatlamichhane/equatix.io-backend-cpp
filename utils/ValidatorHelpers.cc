@@ -38,8 +38,8 @@ bool touchesExisting(const std::vector<Json::Value> &state,
   return false;
 }
 
-bool isOccupied(std::vector<Json::Value> current_,
-                std::vector<Json::Value> state_, int row, int col) {
+bool isOccupied(const std::vector<Json::Value>& current_,
+                conststd::vector<Json::Value>& state_, int row, int col) {
   for (auto &item : current_) {
     if (item["row"].asInt() == row && item["col"].asInt() == col) {
       return true;
@@ -53,7 +53,7 @@ bool isOccupied(std::vector<Json::Value> current_,
   return false;
 }
 
-bool isStraightLine(std::vector<Json::Value> current_, int row, int col) {
+bool isStraightLine(const std::vector<Json::Value>& current_, int row, int col) {
   if (current_.empty())
     return true;
   bool isHorizontal = true;
@@ -81,8 +81,8 @@ bool isStraightLine(std::vector<Json::Value> current_, int row, int col) {
   return isHorizontal || isVertical;
 }
 
-bool isContiguous(std::vector<Json::Value> state,
-                  std::vector<Json::Value> current, int row, int col) {
+bool isContiguous(const std::vector<Json::Value>& state,
+                  const std::vector<Json::Value>& current, int row, int col) {
   if (current.empty())
     return true;
   bool sameRow =
