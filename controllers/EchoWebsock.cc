@@ -46,9 +46,10 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
   } else if (type == WebSocketMessageType::Text) {
     auto &s = wsConnPtr->getContextRef<Subscriber>();
     Json::Value root;
-    Json::CharReaderBuilder builder;
+    thread_local static Json::CharReaderBuilder readerBuilder;
     std::string errs;
-    std::unique_ptr<Json::CharReader> reader(builder.newCharReader());
+    thread_local static std::unique_ptr<Json::CharReader> reader(
+        readerBuilder.newCharReader());
     if (!reader->parse(message.data(), message.data() + message.size(), &root,
                        &errs)) {
       LOG_ERROR << "Invalid JSON received: " << errs;
