@@ -25,6 +25,18 @@
 
 using namespace drogon::orm;
 
+namespace {
+std::string serializeJsonMinified(const Json::Value &root) {
+  thread_local static Json::StreamWriterBuilder writerBuilder;
+  thread_local static bool initialized = []() {
+    writerBuilder["commentStyle"] = "None";
+    writerBuilder["indentation"] = "";
+    return true;
+  }();
+  return Json::writeString(writerBuilder, root);
+}
+} // namespace
+
 void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                                    std::string &&message,
                                    const WebSocketMessageType &type) {
@@ -49,9 +61,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     if (checkEndGame(room)) {
       response["type"] = "error";
       response["message"] = "Game Already Over!";
-      chatRooms_.publish(
-          s.chatRoomName_,
-          Json::writeString(Json::StreamWriterBuilder(), response));
+      chatRooms_.publish(s.chatRoomName_, serializeJsonMinified(response));
       return;
     }
     if ((msgType == "placement" || msgType == "evaluate") &&
@@ -60,9 +70,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       response["message"] = "Not your turn";
       response["writer"] = playerTurn;
       response["turn"] = room.currentTurn;
-      chatRooms_.publish(
-          s.chatRoomName_,
-          Json::writeString(Json::StreamWriterBuilder(), response));
+      chatRooms_.publish(s.chatRoomName_, serializeJsonMinified(response));
       return;
     }
     if (msgType == "reset") {
@@ -91,9 +99,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       stateResponse["turn"] = room.currentTurn;
       stateResponse["passes"] = room.passes;
 
-      chatRooms_.publish(
-          s.chatRoomName_,
-          Json::writeString(Json::StreamWriterBuilder(), stateResponse));
+      chatRooms_.publish(s.chatRoomName_, serializeJsonMinified(stateResponse));
       return;
     } else if (msgType == "swap") {
       room.passes++;
@@ -107,8 +113,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       if (room.tileBag.size() < swapList.size()) {
         response["type"] = "error";
         response["message"] = "Not enough tiles in bag to swap.";
-        wsConnPtr->send(
-            Json::writeString(Json::StreamWriterBuilder(), response));
+        wsConnPtr->send(serializeJsonMinified(response));
         return;
       }
       std::unordered_map<std::string, int> rackCount;
@@ -119,8 +124,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           response["type"] = "error";
           response["message"] =
               "Invalid swap: not enough ' " + tile + " ' in rack.";
-          wsConnPtr->send(
-              Json::writeString(Json::StreamWriterBuilder(), response));
+          wsConnPtr->send(serializeJsonMinified(response));
           return;
         }
       }
@@ -166,8 +170,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
 
           response["type"] = "error";
           response["message"] = "First move must cover the center (8, 8)";
-          Json::StreamWriterBuilder wbuilder;
-          std::string jsonStr = Json::writeString(wbuilder, response);
+          std::string jsonStr = serializeJsonMinified(response);
           chatRooms_.publish(s.chatRoomName_, jsonStr);
 
           return;
@@ -176,8 +179,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         if (!touchesExisting(room.state_, room.current_)) {
           response["type"] = "error";
           response["messsage"] = "Move must connect to existing tiles.";
-          wsConnPtr->send(
-              Json::writeString(Json::StreamWriterBuilder(), response));
+          wsConnPtr->send(serializeJsonMinified(response));
           return;
         }
       }
@@ -213,9 +215,8 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           errorResponse["type"] = "error";
           errorResponse["message"] =
               "Invalid equation (must contain '='): " + expr;
-          chatRooms_.publish(
-              s.chatRoomName_,
-              Json::writeString(Json::StreamWriterBuilder(), errorResponse));
+          chatRooms_.publish(s.chatRoomName_,
+                             serializeJsonMinified(errorResponse));
 
           return;
         }
@@ -229,9 +230,8 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
             Json::Value errorResponse;
             errorResponse["type"] = "error";
             errorResponse["message"] = "Equation does not hold: " + expr;
-            chatRooms_.publish(
-                s.chatRoomName_,
-                Json::writeString(Json::StreamWriterBuilder(), errorResponse));
+            chatRooms_.publish(s.chatRoomName_,
+                               serializeJsonMinified(errorResponse));
 
             return;
           }
@@ -271,17 +271,14 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       if (playerTurn == 2) {
         room.currentTurn = 1;
 
-        room.player2Conn->send(
-            Json::writeString(Json::StreamWriterBuilder(), rackJson));
+        room.player2Conn->send(serializeJsonMinified(rackJson));
 
       } else {
-        room.player1Conn->send(
-            Json::writeString(Json::StreamWriterBuilder(), rackJson));
+        room.player1Conn->send(serializeJsonMinified(rackJson));
         room.currentTurn = 2;
       }
       startTurnTimer(s.chatRoomName_);
-      Json::StreamWriterBuilder wbuilder;
-      std::string jsonStr = Json::writeString(wbuilder, response);
+      std::string jsonStr = serializeJsonMinified(response);
       chatRooms_.publish(s.chatRoomName_, jsonStr);
 
       if (room.isBotGame && room.currentTurn == 2) {
@@ -295,8 +292,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         response["type"] = "error";
         response["message"] = "Cell already occupied";
 
-        Json::StreamWriterBuilder wbuilder;
-        std::string jsonStr = Json::writeString(wbuilder, response);
+        std::string jsonStr = serializeJsonMinified(response);
         chatRooms_.publish(s.chatRoomName_, jsonStr);
         return;
       }
@@ -304,8 +300,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                           payload["col"].asInt())) {
         response["type"] = "error";
         response["message"] = "Not in straight line.";
-        Json::StreamWriterBuilder wbuilder;
-        std::string jsonStr = Json::writeString(wbuilder, response);
+        std::string jsonStr = serializeJsonMinified(response);
         chatRooms_.publish(s.chatRoomName_, jsonStr);
         return;
       }
@@ -313,8 +308,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
                         payload["col"].asInt())) {
         response["type"] = "error";
         response["message"] = "Not contiguous";
-        Json::StreamWriterBuilder wbuilder;
-        std::string jsonStr = Json::writeString(wbuilder, response);
+        std::string jsonStr = serializeJsonMinified(response);
         chatRooms_.publish(s.chatRoomName_, jsonStr);
         return;
       }
@@ -324,9 +318,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       if (it == rack.end()) {
         response["type"] = "error";
         response["message"] = "Tile not in rack.";
-        chatRooms_.publish(
-            s.chatRoomName_,
-            Json::writeString(Json::StreamWriterBuilder(), response));
+        chatRooms_.publish(s.chatRoomName_, serializeJsonMinified(response));
         return;
       }
       rack.erase(it);
@@ -340,8 +332,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       for (auto &item : rack) {
         msg["rack"].append(item);
       }
-      room.player1Conn->send(
-          Json::writeString(Json::StreamWriterBuilder(), msg));
+      room.player1Conn->send(serializeJsonMinified(msg));
     } else {
       auto &rack = room.player2Rack;
       Json::Value msg;
@@ -350,8 +341,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       for (auto &item : rack) {
         msg["rack"].append(item);
       }
-      room.player2Conn->send(
-          Json::writeString(Json::StreamWriterBuilder(), msg));
+      room.player2Conn->send(serializeJsonMinified(msg));
     }
 
     response["type"] = "state";
@@ -376,8 +366,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
     }
     response["turn"] = room.currentTurn;
     response["passes"] = room.passes;
-    Json::StreamWriterBuilder wbuilder;
-    std::string jsonStr = Json::writeString(wbuilder, response);
+    std::string jsonStr = serializeJsonMinified(response);
     chatRooms_.publish(s.chatRoomName_, jsonStr);
     auto win = checkEndGame(room);
     if (win) {
@@ -413,9 +402,7 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       winResponse["score1"] = room.score1;
       winResponse["score2"] = room.score2;
 
-      chatRooms_.publish(
-          s.chatRoomName_,
-          Json::writeString(Json::StreamWriterBuilder(), winResponse));
+      chatRooms_.publish(s.chatRoomName_, serializeJsonMinified(winResponse));
 
       if (winner != 0) {
         auto winnerUid = (winner == 1) ? room.player1Uid : room.player2Uid;
@@ -608,16 +595,15 @@ EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
     opp2["photo"] = r2[0]["photo"].as<std::string>();
     opp2["elo"] = r2[0]["elo"].as<double>();
 
-    static const Json::StreamWriterBuilder swb;
-    room.player1Conn->send(Json::writeString(swb, opp2));
-    room.player2Conn->send(Json::writeString(swb, opp1));
+    room.player1Conn->send(serializeJsonMinified(opp2));
+    room.player2Conn->send(serializeJsonMinified(opp1));
 
     room.currentTurn = 1;
     startTurnTimer(s.chatRoomName_);
 
   } else {
     init["error"] = "2 Players already connected";
-    wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
+    wsConnPtr->send(serializeJsonMinified(init));
     s.id_ = chatRooms_.subscribe(
         s.chatRoomName_,
         [wsConnPtr](const std::string &, const std::string &msg) {
@@ -634,7 +620,7 @@ EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
         wsConnPtr->send(msg);
       });
   wsConnPtr->setContext(std::make_shared<Subscriber>(std::move(s)));
-  wsConnPtr->send(Json::writeString(Json::StreamWriterBuilder(), init));
+  wsConnPtr->send(serializeJsonMinified(init));
 }
 void EchoWebsock::handleConnectionClosed(
     const WebSocketConnectionPtr &wsConnPtr) {
@@ -707,8 +693,7 @@ void EchoWebsock::broadcastState(const std::string &roomName) {
   }
   response["tiles"] = tiles;
 
-  std::string jsonStr =
-      Json::writeString(Json::StreamWriterBuilder(), response);
+  std::string jsonStr = serializeJsonMinified(response);
   chatRooms_.publish(roomName, jsonStr);
 }
 
@@ -724,8 +709,7 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
   ovr["type"] = "game_over";
   ovr["winner"] = winnerSide;
   ovr["reason"] = reason;
-  chatRooms_.publish(roomName,
-                     Json::writeString(Json::StreamWriterBuilder(), ovr));
+  chatRooms_.publish(roomName, serializeJsonMinified(ovr));
 
   if (room.isBotGame) {
     LOG_INFO << "Bot game - db update ignored.";
@@ -907,7 +891,7 @@ void EchoWebsock::saveGameReview(const RoomState &room,
           "$3, $4, $5, $6, $7)",
           std::to_string(room.challengeId), room.player1Uid, room.player2Uid,
           winnerUid, room.score1, room.score2,
-          Json::writeString(Json::StreamWriterBuilder(), movesJson));
+          serializeJsonMinified(movesJson));
       LOG_INFO << "Game review successfully saved to game_history.";
     } catch (const drogon::orm::DrogonDbException &e) {
       LOG_ERROR << "Failed to save game review: " << e.base().what();
