@@ -5,7 +5,6 @@
 #include <random>
 
 #include "Board.h"
-#include "GameLogic.h"
 #include "ValidatorHelpers.h"
 #include <algorithm>
 #include <functional>
