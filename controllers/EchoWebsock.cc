@@ -188,13 +188,13 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
       int currentScore = 0;
       auto affected = getAffectedEquations(room.state_, room.current_);
       for (const auto &seq : affected) {
-        std::set<std::pair<int, int>> newlyPlaced;
+        std::vector<std::pair<int, int>> newlyPlaced;
         for (const auto &tile : seq) {
           for (const auto &placedTile : room.current_) {
             if (tile["row"].asInt() == placedTile["row"].asInt() &&
                 tile["col"].asInt() == placedTile["col"].asInt()) {
-              newlyPlaced.insert(std::pair<int, int>{
-                  placedTile["row"].asInt(), placedTile["col"].asInt()});
+              newlyPlaced.emplace_back(placedTile["row"].asInt(),
+                                       placedTile["col"].asInt());
             }
           }
         }

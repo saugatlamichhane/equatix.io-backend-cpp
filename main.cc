@@ -87,7 +87,6 @@ int main() {
   drogon::app().addListener("0.0.0.0", 5555);
   setupCors();
   fetchFirebaseKeys();
-  initBoardMultipliers();
   drogon::app().getLoop()->runEvery(
       86400.0, []() { FirebaseAuthFilter::refreshKeys(); });
   // Load config file
