@@ -1,32 +1,46 @@
 #pragma once
 #include "RoomState.h"
+#include <json/json.h>
+#include <optional>
+#include <span>
 #include <string>
 #include <vector>
-#include <json/json.h>
 
 struct BotMove {
-    bool isValid = false;
-    std::vector<Json::Value> placedTiles;
-    std::vector<std::string> usedValues;
-    int score = 0;
+  std::vector<Json::Value> placedTiles;
+  std::vector<std::string> usedValues;
+  int score = 0;
 };
 
-// Existing helpers
 void reset(RoomState &room, int playerTurn);
-std::vector<std::string> createTileBag();
-std::vector<std::string> drawTiles(std::vector<std::string> &tileBag, int n);
+[[nodiscard]] std::vector<std::string> createTileBag();
+[[nodiscard]] std::vector<std::string>
+drawTiles(std::vector<std::string> &tileBag, int n);
 
-inline auto checkEndGame = [](RoomState &room) {
-    return (room.tileBag.empty() && (room.player1Rack.empty() || room.player2Rack.empty())) || room.passes >= 6;
+inline auto checkEndGame = [](const RoomState &room) noexcept {
+  return (room.tileBag.empty() &&
+          (room.player1Rack.empty() || room.player2Rack.empty())) ||
+         room.passes >= 6;
 };
 
-// AI Bot Logic
 namespace GameLogic {
-    BotMove findBestMove(const std::vector<Json::Value>& boardState, const std::vector<std::string>& rack);
-    BotMove searchFirstMove(const std::vector<std::string>& rack);
-    BotMove findHighestScoreAtPos(int r, int c, bool horizontal, const std::vector<Json::Value>& board, const std::vector<std::string>& rack);
-    
-    // Internal algorithm helpers
-    std::vector<Json::Value> convertToTiles(const std::vector<std::string>& expr, int r, int c, bool horizontal);
-    bool isAdjacentToTile(const std::vector<Json::Value>& board, int r, int c);
-}
+// Returns nullopt when no valid move exists
+[[nodiscard]] std::optional<BotMove>
+findBestMove(std::span<const Json::Value> boardState,
+             std::span<const std::string> rack);
+
+[[nodiscard]] std::optional<BotMove>
+searchFirstMove(std::span<const std::string> rack);
+
+[[nodiscard]] std::optional<BotMove>
+findHighestScoreAtPos(int r, int c, bool horizontal,
+                      std::span<const Json::Value> board,
+                      std::span<const std::string> rack);
+
+[[nodiscard]] std::vector<Json::Value>
+convertToTiles(std::span<const std::string> expr, int r, int c,
+               bool horizontal);
+
+[[nodiscard]] bool isAdjacentToTile(std::span<const Json::Value> board, int r,
+                                    int c) noexcept;
+} // namespace GameLogic

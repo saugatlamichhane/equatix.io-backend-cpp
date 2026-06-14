@@ -222,20 +222,28 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
           return;
         }
         Json::Value expressions(Json::arrayValue);
-        auto val = evaluateExpression(parts[0]);
+        const auto val = evaluateExpression(parts[0]);
+        if (!val) {
+          Json::Value errorResponse;
+          errorResponse["type"] = "error";
+          errorResponse["message"] = "Invalid expression: " + parts[0];
+          chatRooms_.publish(s.chatRoomName_,
+                             serializeJsonMinified(errorResponse));
+          return;
+        }
         for (const auto &part : parts) {
           Json::Value expression;
           expression["expr"] = part;
-          expression["value"] = evaluateExpression(part);
-          if (expression["value"] != val) {
+          const auto partVal = evaluateExpression(part);
+          if (!partVal || *partVal != *val) {
             Json::Value errorResponse;
             errorResponse["type"] = "error";
             errorResponse["message"] = "Equation does not hold: " + expr;
             chatRooms_.publish(s.chatRoomName_,
                                serializeJsonMinified(errorResponse));
-
             return;
           }
+          expression["value"] = *partVal;
           expressions.append(expression);
         }
         affectedEquation["expressions"] = expressions;
@@ -383,14 +391,14 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
 
       auto db = drogon::app().getDbClient();
 
-      if (room.challengeId != -1 && winner != 0) {
+      if (room.challengeId.has_value() && winner != 0) {
         drogon::async_run([db, winner, room]() -> drogon::Task<> {
           try {
             co_await db->execSqlCoro(
                 "UPDATE challenges SET status='completed', winner=$1, "
                 "completed_at = now() WHERE id=$2",
                 winner == 1 ? room.player1Uid : room.player2Uid,
-                room.challengeId);
+                *room.challengeId);
             LOG_INFO << "Challenge updated";
           } catch (const DrogonDbException &e) {
             LOG_ERROR << e.base().what();
@@ -417,13 +425,13 @@ void EchoWebsock::handleNewMessage(const WebSocketConnectionPtr &wsConnPtr,
         saveGameReview(room, "draw");
         auto db = drogon::app().getDbClient();
 
-        if (room.challengeId != -1) {
+        if (room.challengeId.has_value()) {
           drogon::async_run([db, room]() -> drogon::Task<> {
             try {
               co_await db->execSqlCoro(
                   "UPDATE challenges SET status='completed', winner=NULL, "
                   "completed_at=now() WHERE id=$1",
-                  room.challengeId);
+                  *room.challengeId);
               LOG_INFO << "Challenge updated";
             } catch (const DrogonDbException &e) {
               LOG_ERROR << e.base().what();
@@ -513,11 +521,11 @@ EchoWebsock::onNewConnectionAsync(HttpRequestPtr req,
     try {
       room.challengeId = std::stoi(req->getParameter("room_name").substr(9));
     } catch (...) {
-      room.challengeId = -1;
+      room.challengeId = std::nullopt;
       LOG_WARN << "Invalid challenge room name: " << s.chatRoomName_;
     }
   } else {
-    room.challengeId = -1;
+    room.challengeId = std::nullopt;
   }
 
   Json::Value init;
@@ -704,7 +712,7 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
   stopTimer(roomName);
   std::string winnerUid = (winnerSide == 1) ? room.player1Uid : room.player2Uid;
   std::string loserUid = (winnerSide == 1) ? room.player2Uid : room.player1Uid;
-  int cId = room.challengeId;
+  auto cId = room.challengeId;
   saveGameReview(room, winnerUid);
   Json::Value ovr;
   ovr["type"] = "game_over";
@@ -718,15 +726,16 @@ void EchoWebsock::handleForfeit(const std::string &roomName, int winnerSide,
   }
   auto db = drogon::app().getDbClient();
   LOG_INFO << "Forfeit triggered - Room: " << roomName
-           << " | ChallengeID: " << cId << " | Winner: " << winnerUid;
+           << " | ChallengeID: " << cId.value_or(-1) << " | Winner: " << winnerUid;
 
   drogon::async_run([this, db, roomName, cId, winnerUid, loserUid,
                      room]() -> drogon::Task<> {
     try {
-      auto r = co_await db->execSqlCoro(
-          "UPDATE challenges SET status='forfeit' WHERE id=$1",
-          room.challengeId);
-      LOG_INFO << "Forfeit DB Callback - Rows affected: " << r.affectedRows();
+      if (cId) {
+        auto r = co_await db->execSqlCoro(
+            "UPDATE challenges SET status='forfeit' WHERE id=$1", *cId);
+        LOG_INFO << "Forfeit DB Callback - Rows affected: " << r.affectedRows();
+      }
       this->applyGameRewards(winnerUid, loserUid, true);
     } catch (const DrogonDbException &e) {
       LOG_ERROR << "Failed to update challenge for forfeit: "
@@ -825,7 +834,7 @@ void EchoWebsock::executeBotMove(const std::string &roomName) {
     botPool_.submit([this, roomName, board = std::move(boardSnapshot),
                      rack = std::move(rackSnapshot)]() mutable {
       // ── Running on bot-compute thread, NOT the IO thread ──
-      BotMove botMove = GameLogic::findBestMove(board, rack);
+      auto botMove = GameLogic::findBestMove(board, rack);
 
       // Post the result back to the IO thread — the only thread allowed
       // to mutate room state. queueInLoop() is the thread-safe handoff.
@@ -837,13 +846,13 @@ void EchoWebsock::executeBotMove(const std::string &roomName) {
               return; // room closed while bot was thinking
             auto &r = roomIt->second;
 
-            if (botMove.isValid) {
-              for (const auto &tile : botMove.placedTiles)
+            if (botMove) {
+              for (const auto &tile : botMove->placedTiles)
                 r.state_.push_back(tile);
-              r.score2 += botMove.score;
+              r.score2 += botMove->score;
               r.passes = 0;
 
-              for (const auto &val : botMove.usedValues) {
+              for (const auto &val : botMove->usedValues) {
                 auto rackIt = std::ranges::find(r.player2Rack, val);
                 if (rackIt != r.player2Rack.end())
                   r.player2Rack.erase(rackIt);
@@ -890,8 +899,8 @@ void EchoWebsock::saveGameReview(const RoomState &room,
           "INSERT INTO game_history (room_id, player1_uid, player2_uid, "
           "winner_uid, final_score_p1, final_score_p2, moves) VALUES ($1, $2, "
           "$3, $4, $5, $6, $7)",
-          std::to_string(room.challengeId), room.player1Uid, room.player2Uid,
-          winnerUid, room.score1, room.score2,
+          std::to_string(room.challengeId.value_or(-1)), room.player1Uid,
+          room.player2Uid, winnerUid, room.score1, room.score2,
           serializeJsonMinified(movesJson));
       LOG_INFO << "Game review successfully saved to game_history.";
     } catch (const drogon::orm::DrogonDbException &e) {

@@ -59,17 +59,22 @@ void MyProfile::getInfo(
 
       std::string joinedAgo;
       if (seconds < 60)
-        joinedAgo = std::to_string((int)seconds) + " seconds ago";
+        joinedAgo = std::to_string(static_cast<int>(seconds)) + " seconds ago";
       else if (seconds < 3600)
-        joinedAgo = std::to_string((int)(seconds / 60)) + " minutes ago";
+        joinedAgo =
+            std::to_string(static_cast<int>(seconds / 60)) + " minutes ago";
       else if (seconds < 86400)
-        joinedAgo = std::to_string((int)(seconds / 3600)) + " hours ago";
+        joinedAgo =
+            std::to_string(static_cast<int>(seconds / 3600)) + " hours ago";
       else if (seconds < 2592000)
-        joinedAgo = std::to_string((int)(seconds / 86400)) + " days ago";
+        joinedAgo =
+            std::to_string(static_cast<int>(seconds / 86400)) + " days ago";
       else if (seconds < 31536000)
-        joinedAgo = std::to_string((int)(seconds / 2592000)) + " months ago";
+        joinedAgo =
+            std::to_string(static_cast<int>(seconds / 2592000)) + " months ago";
       else
-        joinedAgo = std::to_string((int)(seconds / 31536000)) + " years ago";
+        joinedAgo =
+            std::to_string(static_cast<int>(seconds / 31536000)) + " years ago";
 
       result["joined_ago"] = joinedAgo;
       (*cb)(drogon::HttpResponse::newHttpJsonResponse(result));

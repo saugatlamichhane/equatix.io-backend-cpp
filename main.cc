@@ -1,13 +1,22 @@
+#include <cstdlib>
 #include <drogon/drogon.h>
 #include <filters/FirebaseAuthFilter.h>
+#include <stdexcept>
 #include <utils/Board.h>
 
+static std::string requireEnv(const char *name) {
+  const char *val = std::getenv(name);
+  if (!val)
+    throw std::runtime_error(std::string("Missing required env var: ") + name);
+  return val;
+}
+
 void setUpDatabase() {
-  std::string host = std::getenv("DB_HOST");
-  std::string port = std::getenv("DB_PORT");
-  std::string dbname = std::getenv("DB_NAME");
-  std::string user = std::getenv("DB_USER");
-  std::string passwd = std::getenv("DB_PASSWD");
+  const std::string host = requireEnv("DB_HOST");
+  const std::string port = requireEnv("DB_PORT");
+  const std::string dbname = requireEnv("DB_NAME");
+  const std::string user = requireEnv("DB_USER");
+  const std::string passwd = requireEnv("DB_PASSWD");
   drogon::app().createDbClient("postgresql", host, std::stoi(port), dbname,
                                user, passwd,
                                1 // timeout in milliseconds

@@ -1,13 +1,11 @@
 #include "GameLogic.h"
 #include "Board.h"
-#include "RoomState.h"
-#include <algorithm>
-#include <random>
-
-#include "Board.h"
 #include "ValidatorHelpers.h"
 #include <algorithm>
 #include <functional>
+#include <optional>
+#include <random>
+#include <ranges>
 
 void reset(RoomState &room, int playerTurn) {
   std::vector<std::string> &playerRack =
@@ -24,9 +22,7 @@ void reset(RoomState &room, int playerTurn) {
   }
   if (playerTurn == 1) {
     room.player1Conn->send(
-
         Json::writeString(Json::StreamWriterBuilder(), response));
-
   } else {
     room.player2Conn->send(
         Json::writeString(Json::StreamWriterBuilder(), response));
@@ -35,134 +31,102 @@ void reset(RoomState &room, int playerTurn) {
 
 std::vector<std::string> createTileBag() {
   std::vector<std::string> bag;
-
-  // Define the valid symbols used in your math engine layout
   constexpr char targetSymbols[] = {'0', '1', '2', '3', '4', '5', '6', '7',
                                     '8', '9', '-', '+', '/', '*', '='};
-
-  // Look up counts inside our cache-optimized global ASCII table
   for (char symbol : targetSymbols) {
-    int count = kTileCount[static_cast<std::size_t>(symbol)];
-
-    // Push the required number of tiles directly into the inventory bag
-    for (int i = 0; i < count; ++i) {
-      bag.push_back(std::string(1, symbol));
-    }
+    const int count = kTileCount[static_cast<std::size_t>(symbol)];
+    for (int i = 0; i < count; ++i)
+      bag.emplace_back(1, symbol);
   }
-  std::random_device rd;
-  std::mt19937 g(rd());
+  std::mt19937 g(std::random_device{}());
   std::shuffle(bag.begin(), bag.end(), g);
   return bag;
 }
 
 std::vector<std::string> drawTiles(std::vector<std::string> &tileBag, int n) {
-  if (n > (int)tileBag.size()) {
-    n = tileBag.size();
-  }
-  std::vector<std::string> drawnTiles;
-  drawnTiles.insert(drawnTiles.end(), tileBag.end() - n, tileBag.end());
+  if (n > static_cast<int>(tileBag.size()))
+    n = static_cast<int>(tileBag.size());
+  std::vector<std::string> drawnTiles(tileBag.end() - n, tileBag.end());
   tileBag.erase(tileBag.end() - n, tileBag.end());
   return drawnTiles;
 }
 
 namespace GameLogic {
 
-bool isAdjacentToTile(const std::vector<Json::Value> &board, int r, int c) {
-  for (const auto &tile : board) {
-    int tr = tile["row"].asInt();
-    int tc = tile["col"].asInt();
-    if ((abs(tr - r) == 1 && tc == c) || (abs(tc - c) == 1 && tr == r))
-      return true;
-  }
-  return false;
+bool isAdjacentToTile(std::span<const Json::Value> board, int r,
+                      int c) noexcept {
+  return std::ranges::any_of(board, [r, c](const Json::Value &tile) {
+    const int tr = tile["row"].asInt();
+    const int tc = tile["col"].asInt();
+    return (std::abs(tr - r) == 1 && tc == c) ||
+           (std::abs(tc - c) == 1 && tr == r);
+  });
 }
 
-std::vector<Json::Value> convertToTiles(const std::vector<std::string> &expr,
+std::vector<Json::Value> convertToTiles(std::span<const std::string> expr,
                                         int r, int c, bool horizontal) {
   std::vector<Json::Value> tiles;
-  for (int i = 0; i < expr.size(); ++i) {
+  tiles.reserve(expr.size());
+  for (int i = 0; i < static_cast<int>(expr.size()); ++i) {
     Json::Value t;
     t["value"] = expr[i];
     t["row"] = horizontal ? r : r + i;
     t["col"] = horizontal ? c + i : c;
-    tiles.push_back(t);
+    tiles.push_back(std::move(t));
   }
   return tiles;
 }
 
-BotMove searchFirstMove(const std::vector<std::string> &rack) {
-  BotMove bestMove{false};
-  bestMove.score = -1;
+std::optional<BotMove> searchFirstMove(std::span<const std::string> rack) {
+  std::optional<BotMove> best;
+  constexpr int maxWordLength = 7;
+  constexpr int center = 8;
 
-  // Standard Scrabble rack size is 7
-  const int maxWordLength = 7;
-  const int center = 8;
-
-  // Check both Horizontal (true) and Vertical (false)
   for (bool isHorizontal : {true, false}) {
-
-    // A word 'touches' the center if it starts at (center - length + 1) up to
-    // (center) We check starting positions from (center - 6) up to (center)
     for (int i = std::max(0, center - maxWordLength + 1); i <= center; ++i) {
+      const int startRow = isHorizontal ? center : i;
+      const int startCol = isHorizontal ? i : center;
 
-      // If horizontal, row is fixed at 8, column varies.
-      // If vertical, column is fixed at 8, row varies.
-      int startRow = isHorizontal ? center : i;
-      int startCol = isHorizontal ? i : center;
-
-      // Call your existing score function
-      BotMove move =
+      auto move =
           findHighestScoreAtPos(startRow, startCol, isHorizontal, {}, rack);
-
-      if (move.isValid) {
-        // Verification: Does this specific move actually cover (8,8)?
-        // We check if startPos + number of tiles >= 8
-        int wordLength = move.usedValues.size();
-        int endPos = (isHorizontal ? startCol : startRow) + wordLength - 1;
-
-        if (endPos >= center) {
-          // Track the highest scoring valid move
-          if (move.score > bestMove.score) {
-            bestMove = move;
-          }
-        }
+      if (move) {
+        const int wordLength = static_cast<int>(move->usedValues.size());
+        const int endPos =
+            (isHorizontal ? startCol : startRow) + wordLength - 1;
+        if (endPos >= center && (!best || move->score > best->score))
+          best = std::move(move);
       }
     }
   }
-
-  // If no valid move was found, bestMove.isValid remains false
-  return bestMove;
+  return best;
 }
 
-BotMove findBestMove(const std::vector<Json::Value> &boardState,
-                     const std::vector<std::string> &rack) {
+std::optional<BotMove> findBestMove(std::span<const Json::Value> boardState,
+                                    std::span<const std::string> rack) {
   if (boardState.empty())
     return searchFirstMove(rack);
 
-  BotMove bestMove;
-  bestMove.score = -1;
-
+  std::optional<BotMove> best;
   for (int r = 1; r <= 15; ++r) {
     for (int c = 1; c <= 15; ++c) {
       if (isOccupied(boardState, {}, r, c))
         continue;
-
       for (bool horizontal : {true, false}) {
-        BotMove current =
+        auto current =
             findHighestScoreAtPos(r, c, horizontal, boardState, rack);
-        if (current.isValid && current.score > bestMove.score) {
-          bestMove = current;
-        }
+        if (current && (!best || current->score > best->score))
+          best = std::move(current);
       }
     }
   }
-  return bestMove.isValid ? bestMove : BotMove{false};
+  return best;
 }
 
-BotMove findHighestScoreAtPos(int r, int c, bool horizontal,
-                              const std::vector<Json::Value> &board,
-                              const std::vector<std::string> &rack) {
-  BotMove best;
+std::optional<BotMove>
+findHighestScoreAtPos(int r, int c, bool horizontal,
+                      std::span<const Json::Value> board,
+                      std::span<const std::string> rack) {
+  std::optional<BotMove> best;
   std::vector<std::string> currentExpr;
   std::vector<bool> usedInRack(rack.size(), false);
 
@@ -170,44 +134,41 @@ BotMove findHighestScoreAtPos(int r, int c, bool horizontal,
     if (currR < 0 || currR >= 15 || currC < 0 || currC >= 15)
       return;
     if (currentExpr.size() > 7)
-      return; // Performance cap
+      return;
 
-    std::string fullStr = "";
+    std::string fullStr;
     for (const auto &s : currentExpr)
       fullStr += s;
 
-    // Validation logic
     if (fullStr.find('=') != std::string::npos && fullStr.back() != '=' &&
-        !ispunct(fullStr.back())) {
-      auto parts = splitEquation(fullStr);
+        !std::ispunct(static_cast<unsigned char>(fullStr.back()))) {
+      const auto parts = splitEquation(fullStr);
       if (parts.size() >= 2) {
-        try {
-          double target = evaluateExpression(parts[0]);
-          bool valid = true;
-          for (auto &p : parts)
-            if (evaluateExpression(p) != target)
-              valid = false;
-
+        const auto target = evaluateExpression(parts[0]);
+        if (target) {
+          const bool valid =
+              std::ranges::all_of(parts, [&](const std::string &p) {
+                const auto val = evaluateExpression(p);
+                return val.has_value() && *val == *target;
+              });
           if (valid) {
-            auto placed = convertToTiles(currentExpr, r, c, horizontal);
-            // Simplified scoring (can be expanded with board multipliers)
-            int currentScore = fullStr.length();
-            if (currentScore > best.score) {
-              best.isValid = true;
-              best.score = currentScore;
-              best.placedTiles = placed;
-              best.usedValues = currentExpr;
+            const int currentScore = static_cast<int>(fullStr.size());
+            if (!best || currentScore > best->score) {
+              best = BotMove{
+                  .placedTiles = convertToTiles(currentExpr, r, c, horizontal),
+                  .usedValues = currentExpr,
+                  .score = currentScore,
+              };
             }
           }
-        } catch (...) {
         }
       }
     }
 
-    for (size_t i = 0; i < rack.size(); ++i) {
+    for (std::size_t i = 0; i < rack.size(); ++i) {
       if (!usedInRack[i]) {
         usedInRack[i] = true;
-        currentExpr.push_back(rack[i]);
+        currentExpr.push_back(std::string(rack[i]));
         horizontal ? backtrack(currR, currC + 1) : backtrack(currR + 1, currC);
         currentExpr.pop_back();
         usedInRack[i] = false;
@@ -218,4 +179,5 @@ BotMove findHighestScoreAtPos(int r, int c, bool horizontal,
   backtrack(r, c);
   return best;
 }
+
 } // namespace GameLogic

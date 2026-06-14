@@ -1,145 +1,114 @@
 #include "ValidatorHelpers.h"
 #include <algorithm>
+#include <map>
+#include <optional>
+#include <ranges>
 #include <set>
 #include <sstream>
-#include <stdexcept>
+#include <stack>
 #include <trantor/utils/Logger.h>
 #include <utility>
 
-bool touchesCenter(const std::vector<Json::Value> &current) {
-  for (auto &t : current) {
-    if (t["row"].asInt() == 8 && t["col"].asInt() == 8) {
+bool touchesCenter(std::span<const Json::Value> current) noexcept {
+  return std::ranges::any_of(current, [](const Json::Value &t) {
+    return t["row"].asInt() == 8 && t["col"].asInt() == 8;
+  });
+}
+
+bool touchesExisting(std::span<const Json::Value> state,
+                     std::span<const Json::Value> current) noexcept {
+  for (const auto &t : current) {
+    const int r = t["row"].asInt();
+    const int c = t["col"].asInt();
+    const bool adjacent =
+        std::ranges::any_of(state, [r, c](const Json::Value &s) {
+          const int sr = s["row"].asInt();
+          const int sc = s["col"].asInt();
+          return (std::abs(sr - r) == 1 && sc == c) ||
+                 (std::abs(sc - c) == 1 && sr == r);
+        });
+    if (adjacent)
       return true;
-    }
   }
   return false;
 }
 
-bool touchesExisting(const std::vector<Json::Value> &state,
-                     const std::vector<Json::Value> &current) {
-  std::set<std::pair<int, int>> placed;
-  for (auto &t : current) {
-
-    placed.insert({t["row"].asInt(), t["col"].asInt()});
-  }
-  for (auto &t : current) {
-    int r = t["row"].asInt();
-    int c = t["col"].asInt();
-    std::vector<std::pair<int, int>> neighbors = {
-        {r - 1, c}, {r + 1, c}, {r, c - 1}, {r, c + 1}};
-    for (auto &nb : neighbors) {
-      for (auto &s : state) {
-        if (s["row"].asInt() == nb.first && s["col"].asInt() == nb.second) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
+bool isOccupied(std::span<const Json::Value> current_,
+                std::span<const Json::Value> state_, int row,
+                int col) noexcept {
+  const auto matches = [row, col](const Json::Value &item) {
+    return item["row"].asInt() == row && item["col"].asInt() == col;
+  };
+  return std::ranges::any_of(current_, matches) ||
+         std::ranges::any_of(state_, matches);
 }
 
-bool isOccupied(const std::vector<Json::Value>& current_,
-                const std::vector<Json::Value>& state_, int row, int col) {
-  for (auto &item : current_) {
-    if (item["row"].asInt() == row && item["col"].asInt() == col) {
-      return true;
-    }
-  }
-  for (auto &item : state_) {
-    if (item["row"].asInt() == row && item["col"].asInt() == col) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool isStraightLine(const std::vector<Json::Value>& current_, int row, int col) {
+bool isStraightLine(std::span<const Json::Value> current_, int row,
+                    int col) noexcept {
   if (current_.empty())
     return true;
-  bool isHorizontal = true;
-  int firstRow = current_.at(0)["row"].asInt();
-  for (const auto &tile : current_) {
-    if (tile["row"].asInt() != firstRow) {
-      isHorizontal = false;
-      break;
-    }
-  }
-  if (row != firstRow)
-    isHorizontal = false;
-
-  bool isVertical = true;
-  int firstCol = current_[0]["col"].asInt();
-
-  for (const auto &tile : current_) {
-    if (tile["col"].asInt() != firstCol) {
-      isVertical = false;
-      break;
-    }
-  }
-  if (col != firstCol)
-    isVertical = false;
+  const int firstRow = current_[0]["row"].asInt();
+  const int firstCol = current_[0]["col"].asInt();
+  const bool isHorizontal =
+      (row == firstRow) &&
+      std::ranges::all_of(current_, [firstRow](const Json::Value &t) {
+        return t["row"].asInt() == firstRow;
+      });
+  const bool isVertical =
+      (col == firstCol) &&
+      std::ranges::all_of(current_, [firstCol](const Json::Value &t) {
+        return t["col"].asInt() == firstCol;
+      });
   return isHorizontal || isVertical;
 }
 
-bool isContiguous(const std::vector<Json::Value>& state,
-                  const std::vector<Json::Value>& current, int row, int col) {
+bool isContiguous(std::span<const Json::Value> state,
+                  std::span<const Json::Value> current, int row, int col) {
   if (current.empty())
     return true;
-  bool sameRow =
-      std::all_of(current.begin(), current.end(),
-                  [&](const auto &tile) { return tile["row"].asInt() == row; });
-  bool sameCol =
-      std::all_of(current.begin(), current.end(),
-                  [&](const auto &tile) { return tile["col"].asInt() == col; });
+  const bool sameRow = std::ranges::all_of(
+      current, [row](const Json::Value &t) { return t["row"].asInt() == row; });
+  const bool sameCol = std::ranges::all_of(
+      current, [col](const Json::Value &t) { return t["col"].asInt() == col; });
   if (!sameRow && !sameCol)
     return false;
 
   if (sameRow) {
     std::set<int> cols;
-    for (const auto &tile : current) {
-      if (tile["row"].asInt() == row)
-        cols.insert(tile["col"].asInt());
-    }
+    for (const auto &t : current)
+      cols.insert(t["col"].asInt());
     cols.insert(col);
-    for (const auto &tile : state) {
-      if (tile["row"].asInt() == row)
-        cols.insert(tile["col"].asInt());
+    for (const auto &t : state)
+      if (t["row"].asInt() == row)
+        cols.insert(t["col"].asInt());
+
+    int minCol = col, maxCol = col;
+    for (const auto &t : current) {
+      minCol = std::min(minCol, t["col"].asInt());
+      maxCol = std::max(maxCol, t["col"].asInt());
     }
-    int minCol = 20, maxCol = -1;
-    for (const auto &tile : current) {
-      minCol = std::min(minCol, tile["col"].asInt());
-      maxCol = std::max(maxCol, tile["col"].asInt());
-    }
-    minCol = std::min(minCol, col);
-    maxCol = std::max(maxCol, col);
     for (int c = minCol; c <= maxCol; ++c) {
-      if (cols.find(c) == cols.end()) {
+      if (!cols.contains(c))
         return false;
-      }
     }
-  } else if (sameCol) {
+  } else {
     std::set<int> rows;
-    for (const auto &tile : current) {
-      if (tile["col"].asInt() == col)
-        rows.insert(tile["row"].asInt());
-    }
+    for (const auto &t : current)
+      rows.insert(t["row"].asInt());
     rows.insert(row);
-    for (const auto &tile : state) {
-      if (tile["col"].asInt() == col)
-        rows.insert(tile["row"].asInt());
+    for (const auto &t : state)
+      if (t["col"].asInt() == col)
+        rows.insert(t["row"].asInt());
+
+    int minRow = row, maxRow = row;
+    for (const auto &t : current) {
+      minRow = std::min(minRow, t["row"].asInt());
+      maxRow = std::max(maxRow, t["row"].asInt());
     }
-    int minRow = 20, maxRow = -1;
-    for (const auto &tile : current) {
-      minRow = std::min(minRow, tile["row"].asInt());
-      maxRow = std::max(maxRow, tile["row"].asInt());
-    }
-    minRow = std::min(minRow, row);
-    maxRow = std::max(maxRow, row);
     for (int r = minRow; r <= maxRow; ++r) {
-      if (rows.find(r) == rows.end()) {
+      if (!rows.contains(r)) {
         LOG_DEBUG << "row " << r << " not found";
         return false;
-
       } else {
         LOG_DEBUG << "row " << r << " found";
       }
@@ -149,79 +118,64 @@ bool isContiguous(const std::vector<Json::Value>& state,
 }
 
 std::vector<std::vector<Json::Value>>
-getAffectedEquations(const std::vector<Json::Value> &state,
-                     const std::vector<Json::Value> &current) {
+getAffectedEquations(std::span<const Json::Value> state,
+                     std::span<const Json::Value> current) {
   using Coord = std::pair<int, int>;
   std::map<Coord, Json::Value> board;
-  auto addTiles = [&](const std::vector<Json::Value> &tiles) {
-    for (auto &t : tiles) {
-      int r = t["row"].asInt();
-      int c = t["col"].asInt();
-      board[{r, c}] = t;
-    }
-  };
-  addTiles(state);
-  addTiles(current);
+  for (const auto &t : state)
+    board[{t["row"].asInt(), t["col"].asInt()}] = t;
+  for (const auto &t : current)
+    board[{t["row"].asInt(), t["col"].asInt()}] = t;
+
   std::vector<std::vector<Json::Value>> affected;
   std::set<std::string> seen;
 
-  for (auto &t : current) {
-    int r = t["row"].asInt();
-    int c = t["col"].asInt();
+  for (const auto &t : current) {
+    const int r = t["row"].asInt();
+    const int c = t["col"].asInt();
 
-    std::vector<Json::Value> rowSeq;
-
+    // Scan the horizontal run containing (r, c)
     int cc = c;
     while (board.count({r, cc}))
-      cc--;
-
-    cc++;
-
-    while (board.count({r, cc})) {
-      rowSeq.push_back(board[{r, cc}]);
-      cc++;
-    }
+      --cc;
+    ++cc;
+    std::vector<Json::Value> rowSeq;
+    while (board.count({r, cc}))
+      rowSeq.push_back(board[{r, cc++}]);
     if (rowSeq.size() > 1) {
-      std::string key = "R:" + std::to_string(r) + ":" +
-                        std::to_string(rowSeq.front()["col"].asInt()) + "-" +
-                        std::to_string(rowSeq.back()["col"].asInt());
-      if (!seen.count(key)) {
+      const std::string key = "R:" + std::to_string(r) + ":" +
+                              std::to_string(rowSeq.front()["col"].asInt()) +
+                              "-" +
+                              std::to_string(rowSeq.back()["col"].asInt());
+      if (!seen.contains(key)) {
         seen.insert(key);
-        affected.push_back(rowSeq);
+        affected.push_back(std::move(rowSeq));
       }
     }
-    std::vector<Json::Value> colSeq;
-    int rr = r;
-    while (board.count({rr, c})) {
-      rr--;
-    }
-    rr++;
-    while (board.count({rr, c})) {
-      colSeq.push_back(board[{rr, c}]);
-      rr++;
-    }
 
+    // Scan the vertical run containing (r, c)
+    int rr = r;
+    while (board.count({rr, c}))
+      --rr;
+    ++rr;
+    std::vector<Json::Value> colSeq;
+    while (board.count({rr, c}))
+      colSeq.push_back(board[{rr++, c}]);
     if (colSeq.size() > 1) {
-      std::string key = "C:" + std::to_string(c) + ":" +
-                        std::to_string(colSeq.front()["row"].asInt()) + "-" +
-                        std::to_string(colSeq.back()["row"].asInt());
-      if (!seen.count(key)) {
+      const std::string key = "C:" + std::to_string(c) + ":" +
+                              std::to_string(colSeq.front()["row"].asInt()) +
+                              "-" +
+                              std::to_string(colSeq.back()["row"].asInt());
+      if (!seen.contains(key)) {
         seen.insert(key);
-        affected.push_back(colSeq);
+        affected.push_back(std::move(colSeq));
       }
     }
   }
   return affected;
 }
 
-int precedence(char op) {
-  if (op == '+' || op == '-')
-    return 1;
-  if (op == '*' || op == '/')
-    return 2;
-}
-
-int applyOp(int a, int b, char op) {
+std::optional<int> applyOp(int a, int b, char op) noexcept {
   switch (op) {
   case '+':
     return a + b;
@@ -230,63 +184,73 @@ int applyOp(int a, int b, char op) {
   case '*':
     return a * b;
   case '/':
-    if (b == 0)
-      throw std::runtime_error("Division by zero");
-    if (a % b != 0)
-      throw std::runtime_error("Not divisible");
+    if (b == 0 || a % b != 0)
+      return std::nullopt;
     return a / b;
+  default:
+    return std::nullopt;
   }
-  throw std::runtime_error("invalid operator");
 }
 
-int evaluateExpression(const std::string &expr) {
+std::optional<int> evaluateExpression(std::string_view expr) noexcept {
   std::stack<int> values;
   std::stack<char> ops;
 
-  size_t i = 0;
-  while (i < expr.size()) {
-    if (isdigit(expr[i])) {
+  for (std::size_t i = 0; i < expr.size();) {
+    if (std::isdigit(static_cast<unsigned char>(expr[i]))) {
       int val = 0;
-      while (i < expr.size() && isdigit(expr[i])) {
-        val = val * 10 + (expr[i] - '0');
-        i++;
-      }
+      while (i < expr.size() &&
+             std::isdigit(static_cast<unsigned char>(expr[i])))
+        val = val * 10 + (expr[i++] - '0');
       values.push(val);
     } else if (expr[i] == '+' || expr[i] == '-' || expr[i] == '*' ||
                expr[i] == '/') {
       while (!ops.empty() && precedence(ops.top()) >= precedence(expr[i])) {
-        int b = values.top();
+        if (values.size() < 2)
+          return std::nullopt;
+        const int b = values.top();
         values.pop();
-        int a = values.top();
+        const int a = values.top();
         values.pop();
-        char op = ops.top();
+        const char op = ops.top();
         ops.pop();
-        values.push(applyOp(a, b, op));
+        const auto res = applyOp(a, b, op);
+        if (!res)
+          return std::nullopt;
+        values.push(*res);
       }
-      ops.push(expr[i]);
-      i++;
+      ops.push(expr[i++]);
     } else {
-      throw std::runtime_error("Invalid character in expression");
+      return std::nullopt;
     }
   }
   while (!ops.empty()) {
-    int b = values.top();
+    if (values.size() < 2)
+      return std::nullopt;
+    const int b = values.top();
     values.pop();
-    int a = values.top();
+    const int a = values.top();
     values.pop();
-    char op = ops.top();
+    const char op = ops.top();
     ops.pop();
-    values.push(applyOp(a, b, op));
+    const auto res = applyOp(a, b, op);
+    if (!res)
+      return std::nullopt;
+    values.push(*res);
   }
+  if (values.empty())
+    return std::nullopt;
   return values.top();
 }
 
-std::vector<std::string> splitEquation(const std::string &eq) {
+std::vector<std::string> splitEquation(std::string_view eq) {
   std::vector<std::string> parts;
-  std::stringstream ss(eq);
-  std::string token;
-  while (std::getline(ss, token, '=')) {
-    parts.push_back(token);
+  std::size_t pos = 0;
+  std::size_t found;
+  while ((found = eq.find('=', pos)) != std::string_view::npos) {
+    parts.emplace_back(eq.substr(pos, found - pos));
+    pos = found + 1;
   }
+  parts.emplace_back(eq.substr(pos));
   return parts;
 }

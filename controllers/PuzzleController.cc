@@ -461,9 +461,18 @@ void PuzzleController::validateMove(
           co_return;
         }
 
-        auto val = evaluateExpression(parts[0]);
+        const auto val = evaluateExpression(parts[0]);
+        if (!val) {
+          auto resp = HttpResponse::newHttpJsonResponse(
+              PuzzleController::createErrorResponse(
+                  "Invalid expression: " + parts[0], "VALIDATION_FAILED"));
+          resp->setStatusCode(k400BadRequest);
+          (*cb)(resp);
+          co_return;
+        }
         for (size_t i = 1; i < parts.size(); ++i) {
-          if (evaluateExpression(parts[i]) != val) {
+          const auto pval = evaluateExpression(parts[i]);
+          if (!pval || *pval != *val) {
             auto resp = HttpResponse::newHttpJsonResponse(
                 PuzzleController::createErrorResponse(
                     "Equation does not hold: " + expr, "VALIDATION_FAILED"));

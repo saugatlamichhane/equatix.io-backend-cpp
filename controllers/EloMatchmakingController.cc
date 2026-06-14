@@ -1,5 +1,6 @@
 #include "EloMatchmakingController.h"
 #include "LiveStatsController.h"
+#include <algorithm>
 #include <drogon/utils/coroutine.h>
 #include <memory>
 #include <trantor/utils/Logger.h>
@@ -34,16 +35,16 @@ void EloMatchmakingController::handleNewMessage(
 
     // Look for opponent in acceptable Elo range
     auto it = std::find_if(waitingQueue_.begin(), waitingQueue_.end(),
-                           [elo, this](const std::tuple<std::string, int> &t) {
-                             return std::abs(std::get<1>(t) - elo) <= ELO_RANGE;
+                           [elo, this](const WaitingEntry &e) {
+                             return std::abs(e.elo - elo) <= ELO_RANGE;
                            });
 
     if (it != waitingQueue_.end()) {
-      opponentId = std::get<0>(*it);
+      opponentId = it->userId;
       opponentWsConn = wsMap_[opponentId];
       waitingQueue_.erase(it);
     } else {
-      waitingQueue_.emplace_back(userId, elo);
+      waitingQueue_.push_back({.userId = userId, .elo = elo});
       return; // wait
     }
   }
@@ -90,21 +91,20 @@ void EloMatchmakingController::handleConnectionClosed(
     std::lock_guard<std::mutex> lock(queueMutex_);
 
     // Find userId for this wsConn
-    for (auto it = wsMap_.begin(); it != wsMap_.end(); ++it) {
-      if (it->second == wsConnPtr) {
-        toErase = it->first;
-        wsMap_.erase(it);
+    for (const auto &[userId, conn] : wsMap_) {
+      if (conn == wsConnPtr) {
+        toErase = userId;
         break;
       }
     }
-
     if (!toErase.empty()) {
-      waitingQueue_.erase(
-          std::remove_if(waitingQueue_.begin(), waitingQueue_.end(),
-                         [&toErase](const std::tuple<std::string, int> &t) {
-                           return std::get<0>(t) == toErase;
-                         }),
-          waitingQueue_.end());
+      wsMap_.erase(toErase);
+      waitingQueue_.erase(std::remove_if(waitingQueue_.begin(),
+                                         waitingQueue_.end(),
+                                         [&toErase](const WaitingEntry &e) {
+                                           return e.userId == toErase;
+                                         }),
+                          waitingQueue_.end());
     }
   }
 }

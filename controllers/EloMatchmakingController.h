@@ -6,7 +6,6 @@
 #include <drogon/orm/DbClient.h>
 #include <json/json.h>
 #include <mutex>
-#include <tuple>
 #include <unordered_map>
 
 using namespace drogon;
@@ -27,9 +26,13 @@ public:
   WS_PATH_LIST_END
 
 private:
-  std::deque<std::tuple<std::string, int>> waitingQueue_; // userId, elo
-  std::unordered_map<std::string, WebSocketConnectionPtr>
-      wsMap_; // userId -> wsConn
+  struct WaitingEntry {
+    std::string userId;
+    int elo;
+  };
+
+  std::deque<WaitingEntry> waitingQueue_;
+  std::unordered_map<std::string, WebSocketConnectionPtr> wsMap_;
   std::mutex queueMutex_;
-  const int ELO_RANGE = 100;
+  static constexpr int ELO_RANGE = 100;
 };
