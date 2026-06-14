@@ -97,7 +97,7 @@ void PuzzleController::listPuzzles(
   drogon::async_run([db, userId, limit, offset, whereClause, orderClause,
                      countQuery, cb]() -> drogon::Task<> {
     try {
-      auto countResult = co_await db->execSqlCoro(countQuery, userId);
+      auto countResult = co_await db->execSqlCoro(countQuery);
       int total = 0;
       if (!countResult.empty()) {
         total = countResult[0]["total"].as<int>();
